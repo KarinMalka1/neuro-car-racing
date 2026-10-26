@@ -23,6 +23,7 @@ let isPaused = false;
 let simSpeed = 1;
 let mutationRate = 0.20;
 let soundEnabled = false;
+let evolveDelay = 0; // Smooth cooldown before spawning next generation
 
 // Human Player State
 let playerCar = null;
@@ -67,11 +68,11 @@ function playSound(type) {
             osc.stop(now + 0.25);
         }
     } catch (e) {
-        // Audio error silent fallback
+        // Silent fallback
     }
 }
 
-// Initialize Population & Player
+// Initialize Population
 function generateCars(N, baseBrain = null) {
     const newCars = [];
     for (let i = 0; i < N; i++) {
@@ -79,14 +80,17 @@ function generateCars(N, baseBrain = null) {
         if (baseBrain) {
             brain = NeuralNetwork.clone(baseBrain);
             if (i > 0) {
-                // Elitism: Index 0 is exact clone; others mutated
-                const dynamicRate = (i > N * 0.85) ? mutationRate * 1.8 : mutationRate;
+                // Elitism: Index 0 is exact champion clone; others mutated
+                const dynamicRate = (i > N * 0.8) ? mutationRate * 1.6 : mutationRate;
                 NeuralNetwork.mutate(brain, dynamicRate, 0.35);
             }
         } else {
             brain = new NeuralNetwork([5, 6, 4]);
         }
-        newCars.push(new Car(track.start.x, track.start.y, track.start.angle, brain, 'AI'));
+        const car = new Car(track.start.x, track.start.y, track.start.angle, brain, 'AI');
+        // Pre-update sensors and polygons so they are ready on frame 0
+        car.sensor.update(track.borders);
+        newCars.push(car);
     }
     return newCars;
 }
@@ -103,6 +107,7 @@ function init() {
 
     // Spawn Player Car (Orange)
     playerCar = new Car(track.start.x, track.start.y, track.start.angle, null, 'HUMAN');
+    playerCar.sensor.update(track.borders);
 
     updateUI();
     requestAnimationFrame(animate);
@@ -132,6 +137,7 @@ function nextGeneration() {
     // 2. Spawn new population using champion brain
     cars = generateCars(POPULATION_SIZE, championBrain);
     bestCar = cars[0];
+    evolveDelay = 0;
     updateUI();
 }
 
@@ -149,7 +155,7 @@ function animate(time) {
 }
 
 function updatePhysics() {
-    // 1. Update Human Player Car
+    // 1. Always update Human Player Car (Player keeps driving continuously!)
     if (playerEnabled && playerCar) {
         playerCar.controls.forward = humanKeys.forward ? 1 : 0;
         playerCar.controls.reverse = humanKeys.reverse ? 1 : 0;
@@ -188,13 +194,20 @@ function updatePhysics() {
         bestCar = currentLeader;
     }
 
-    // Check if generation should end
+    // Handle Generation End & Evolution Delay
     if (aliveCount === 0) {
-        nextGeneration();
+        evolveDelay++;
+        // Give 45 frames (~0.75s) showing status before smoothly restarting next generation
+        if (evolveDelay > 45) {
+            nextGeneration();
+            aliveCount = POPULATION_SIZE;
+        }
+    } else {
+        evolveDelay = 0;
     }
 
     // Update stats UI
-    document.getElementById('aliveVal').textContent = aliveCount;
+    document.getElementById('aliveVal').textContent = (aliveCount === 0 && evolveDelay > 0) ? 'Evolving...' : aliveCount;
     document.getElementById('fitnessVal').textContent = Math.floor(Math.max(highestFitness, maxFitnessRecord));
 }
 
@@ -218,16 +231,36 @@ function render() {
 
     // 3. Draw Champion Car with Glow & Sensor Rays
     if (bestCar) {
-        bestCar.sensor.draw(carCtx);
+        if (bestCar.sensor) {
+            bestCar.sensor.draw(carCtx);
+        }
         bestCar.draw(carCtx, true);
 
         // 4. Draw Neural Network Brain
-        Visualizer.drawNetwork(networkCtx, bestCar.brain);
+        if (bestCar.brain) {
+            Visualizer.drawNetwork(networkCtx, bestCar.brain);
+        }
     }
 
     // 5. Draw Human Player Car (Orange)
     if (playerEnabled && playerCar) {
         playerCar.draw(carCtx);
+    }
+
+    // 6. Draw Evolution Notice Overlay
+    if (evolveDelay > 0) {
+        carCtx.save();
+        carCtx.fillStyle = 'rgba(10, 14, 23, 0.7)';
+        carCtx.fillRect(carCanvas.width / 2 - 180, 25, 360, 40);
+        carCtx.strokeStyle = '#00f3ff';
+        carCtx.lineWidth = 1.5;
+        carCtx.strokeRect(carCanvas.width / 2 - 180, 25, 360, 40);
+
+        carCtx.fillStyle = '#39ff14';
+        carCtx.font = 'bold 15px "Segoe UI", sans-serif';
+        carCtx.textAlign = 'center';
+        carCtx.fillText(`🧬 Round Complete! Evolving Gen ${generation + 1}...`, carCanvas.width / 2, 50);
+        carCtx.restore();
     }
 }
 

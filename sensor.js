@@ -12,6 +12,9 @@ class Sensor {
 
         this.rays = [];
         this.readings = [];
+
+        // Cast initial rays immediately so this.rays is always defined
+        this.#castRays();
     }
 
     /**
@@ -58,6 +61,7 @@ class Sensor {
      * Find closest intersection for a ray against all track border segments.
      */
     #getReading(ray, trackBorders) {
+        if (!trackBorders || trackBorders.length === 0) return null;
         const touches = [];
 
         for (let i = 0; i < trackBorders.length; i++) {
@@ -86,25 +90,29 @@ class Sensor {
      * Draw rays on canvas. Only called for the best car.
      */
     draw(ctx) {
-        for (let i = 0; i < this.rayCount; i++) {
+        if (!this.rays || this.rays.length === 0) return;
+
+        for (let i = 0; i < this.rays.length; i++) {
             const ray = this.rays[i];
+            if (!ray || !ray[0] || !ray[1]) continue;
+
             let end = ray[1];
-            if (this.readings[i]) {
+            if (this.readings && this.readings[i]) {
                 end = this.readings[i];
             }
 
             // Ray beam from car to intersection (or max length)
             ctx.beginPath();
             ctx.lineWidth = 2.5;
-            ctx.strokeStyle = this.readings[i] ? '#00f3ff' : '#00ffff44';
+            ctx.strokeStyle = (this.readings && this.readings[i]) ? '#00f3ff' : 'rgba(0, 243, 255, 0.25)';
             ctx.shadowColor = '#00f3ff';
-            ctx.shadowBlur = this.readings[i] ? 8 : 2;
+            ctx.shadowBlur = (this.readings && this.readings[i]) ? 8 : 2;
             ctx.moveTo(ray[0].x, ray[0].y);
             ctx.lineTo(end.x, end.y);
             ctx.stroke();
 
             // Dim ray segment extending past intersection
-            if (this.readings[i]) {
+            if (this.readings && this.readings[i]) {
                 ctx.beginPath();
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = 'rgba(255, 60, 90, 0.4)';

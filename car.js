@@ -20,14 +20,13 @@ class Car {
         this.height = 32;
 
         this.speed = 0;
-        this.acceleration = 0.22;
+        this.acceleration = controlType === 'HUMAN' ? 0.25 : 0.22;
         this.maxSpeed = controlType === 'HUMAN' ? 5.2 : 4.8;
         this.friction = 0.05;
-        this.turnRate = 0.05;
+        this.turnRate = controlType === 'HUMAN' ? 0.055 : 0.048;
 
         this.damaged = false;
-        this.respawnTimer = 0;
-        this.polygon = [];
+        this.hitWallFlash = 0;
 
         // Sensors and Brain
         this.sensor = new Sensor(this);
@@ -43,10 +42,13 @@ class Car {
         // Genetic fitness tracking
         this.fitness = 0;
         this.checkpointsPassed = 0;
-        this.nextCheckpointIdx = 1; // Starting line is checkpoint 0
+        this.nextCheckpointIdx = 1;
         this.laps = 0;
         this.framesSinceCheckpoint = 0;
         this.stuckFrames = 0;
+
+        // Immediately compute bounding polygon
+        this.polygon = this.#createPolygon();
     }
 
     /**
@@ -78,7 +80,9 @@ class Car {
             this.polygon = this.#createPolygon();
 
             // 4. Collision test with borders
-            this.damaged = this.#assessDamage(trackBorders);
+            if (this.#assessDamage(trackBorders)) {
+                this.damaged = true;
+            }
 
             // 5. Checkpoint progression & fitness
             this.#updateFitness(checkpoints);
@@ -86,39 +90,37 @@ class Car {
     }
 
     #updateHuman(trackBorders, checkpoints) {
-        if (this.respawnTimer > 0) {
-            this.respawnTimer--;
-            if (this.respawnTimer === 0) {
-                // Respawn at start line
-                const startGate = checkpoints[0];
-                this.x = (startGate[0].x + startGate[1].x) / 2;
-                this.y = (startGate[0].y + startGate[1].y) / 2;
-                this.speed = 0;
-            }
-            return;
+        if (this.hitWallFlash > 0) {
+            this.hitWallFlash--;
         }
 
         this.#move();
         this.polygon = this.#createPolygon();
 
-        // Check crash
+        // Check if player bumped into wall
         if (this.#assessDamage(trackBorders)) {
-            this.respawnTimer = 25; // Brief respawn pause
-            this.speed = -1.5; // Bounce back
-            return;
+            // Bounce back and slow down without resetting progress
+            this.speed = -1.2;
+            this.hitWallFlash = 12;
+            // Push slightly back toward center
+            this.x += Math.sin(this.angle) * 3;
+            this.y += Math.cos(this.angle) * 3;
+            this.polygon = this.#createPolygon();
         }
 
-        // Lap progression
-        const nextGate = checkpoints[this.nextCheckpointIdx];
-        const gateCenter = {
-            x: (nextGate[0].x + nextGate[1].x) / 2,
-            y: (nextGate[0].y + nextGate[1].y) / 2
-        };
-        const dist = Math.hypot(this.x - gateCenter.x, this.y - gateCenter.y);
-        if (dist < 50) {
-            this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
-            if (this.nextCheckpointIdx === 0) {
-                this.laps++;
+        // Lap progression for human player
+        if (checkpoints && checkpoints.length > 0) {
+            const nextGate = checkpoints[this.nextCheckpointIdx];
+            const gateCenter = {
+                x: (nextGate[0].x + nextGate[1].x) / 2,
+                y: (nextGate[0].y + nextGate[1].y) / 2
+            };
+            const dist = Math.hypot(this.x - gateCenter.x, this.y - gateCenter.y);
+            if (dist < 60) {
+                this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
+                if (this.nextCheckpointIdx === 0) {
+                    this.laps++;
+                }
             }
         }
     }
@@ -129,7 +131,7 @@ class Car {
             this.speed += this.acceleration;
         }
         if (this.controls.reverse) {
-            this.speed -= this.acceleration * 0.55;
+            this.speed -= this.acceleration * 0.6;
         }
 
         // Clamp speed
@@ -192,6 +194,7 @@ class Car {
     }
 
     #assessDamage(trackBorders) {
+        if (!trackBorders) return false;
         for (let i = 0; i < trackBorders.length; i++) {
             if (Car.polysIntersect(this.polygon, trackBorders[i])) {
                 return true;
@@ -203,19 +206,19 @@ class Car {
     #updateFitness(checkpoints) {
         this.framesSinceCheckpoint++;
 
-        // Detect if stuck/immobile
-        if (Math.abs(this.speed) < 0.25) {
+        // Detect if car is completely stuck/stopped for too long
+        if (Math.abs(this.speed) < 0.2) {
             this.stuckFrames++;
-            if (this.stuckFrames > 120) {
-                this.damaged = true; // Auto-cull cars that idle or get wedged
+            if (this.stuckFrames > 180) { // 3 seconds of zero motion
+                this.damaged = true;
                 return;
             }
         } else {
             this.stuckFrames = 0;
         }
 
-        // Timeout if car fails to reach next checkpoint in ~3.5 seconds
-        if (this.framesSinceCheckpoint > 220) {
+        // Generous checkpoint timeout: 8 seconds to reach next gate
+        if (this.framesSinceCheckpoint > 480) {
             this.damaged = true;
             return;
         }
@@ -226,7 +229,6 @@ class Car {
             y: (nextGate[0].y + nextGate[1].y) / 2
         };
 
-        // Check if car passed or is close to the next checkpoint
         const dist = Math.hypot(this.x - gateCenter.x, this.y - gateCenter.y);
         const didCross = Sensor.getIntersection(
             { x: this.x, y: this.y },
@@ -235,7 +237,7 @@ class Car {
             nextGate[1]
         );
 
-        if (didCross || dist < 45) {
+        if (didCross || dist < 55) {
             this.checkpointsPassed++;
             this.framesSinceCheckpoint = 0;
             this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
@@ -245,13 +247,13 @@ class Car {
             }
         }
 
-        // Continuous fitness: passed checkpoints + proximity to next gate
-        const maxGateDist = 120;
+        // Fitness calculation
+        const maxGateDist = 140;
         const progressToNext = Math.max(0, 1 - dist / maxGateDist);
         this.fitness = (this.checkpointsPassed * 100) + (progressToNext * 60) + (this.laps * 5000);
 
         if (this.damaged) {
-            this.fitness = Math.max(0, this.fitness - 30);
+            this.fitness = Math.max(0, this.fitness - 20);
         }
     }
 
@@ -259,7 +261,7 @@ class Car {
      * Draw the car polygon with futuristic styling.
      */
     draw(ctx, isBest = false) {
-        if (this.polygon.length === 0) return;
+        if (!this.polygon || this.polygon.length === 0) return;
 
         ctx.save();
         ctx.beginPath();
@@ -270,16 +272,16 @@ class Car {
         ctx.closePath();
 
         if (this.controlType === 'HUMAN') {
-            // Player Car: Fiery Orange with pulsing electric shield
-            ctx.fillStyle = '#ff5500';
-            ctx.shadowColor = '#ff3300';
-            ctx.shadowBlur = 16;
+            // Player Car: Fiery Orange
+            ctx.fillStyle = this.hitWallFlash > 0 ? '#ff0033' : '#ff5500';
+            ctx.shadowColor = '#ff5500';
+            ctx.shadowBlur = 14;
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2.5;
             ctx.fill();
             ctx.stroke();
 
-            // Headlights & windshield
+            // Cockpit
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(-this.angle);
@@ -295,20 +297,20 @@ class Car {
 
             // Floating "YOU" tag
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px "Segoe UI", sans-serif';
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.shadowBlur = 4;
             ctx.shadowColor = '#000000';
-            ctx.fillText('YOU (P1)', 0, this.height * 0.75);
+            ctx.fillText('YOU', 0, this.height * 0.75);
             ctx.restore();
             ctx.restore();
             return;
         }
 
         if (this.damaged) {
-            // Crashed car: dim and unobtrusive
-            ctx.fillStyle = 'rgba(120, 30, 40, 0.12)';
-            ctx.strokeStyle = 'rgba(200, 40, 40, 0.2)';
+            // Crashed car: dim
+            ctx.fillStyle = 'rgba(120, 30, 40, 0.1)';
+            ctx.strokeStyle = 'rgba(200, 40, 40, 0.15)';
             ctx.lineWidth = 1;
             ctx.fill();
             ctx.stroke();
@@ -322,14 +324,14 @@ class Car {
             ctx.fill();
             ctx.stroke();
 
-            // Sleek windshield / cockpit
+            // Windshield
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(-this.angle);
             ctx.fillStyle = '#0a101d';
             ctx.fillRect(-this.width * 0.3, -this.height * 0.3, this.width * 0.6, this.height * 0.35);
 
-            // Glowing headlights
+            // Headlights
             ctx.fillStyle = '#00f3ff';
             ctx.shadowColor = '#00f3ff';
             ctx.shadowBlur = 8;
@@ -348,10 +350,8 @@ class Car {
         ctx.restore();
     }
 
-    /**
-     * Test intersection between a polygon (array of vertices) and a line segment.
-     */
     static polysIntersect(poly, segment) {
+        if (!poly || poly.length < 2 || !segment) return false;
         for (let i = 0; i < poly.length; i++) {
             const touch = Sensor.getIntersection(
                 poly[i],
