@@ -1,5 +1,6 @@
 /**
  * Main Simulation Orchestrator & Genetic Evolution Loop
+ * Supports both AI Auto-Evolution and Interactive Human Player Racing (WASD/Arrows).
  */
 
 const POPULATION_SIZE = 100;
@@ -22,6 +23,16 @@ let isPaused = false;
 let simSpeed = 1;
 let mutationRate = 0.20;
 let soundEnabled = false;
+
+// Human Player State
+let playerCar = null;
+let playerEnabled = true;
+const humanKeys = {
+    forward: false,
+    reverse: false,
+    left: false,
+    right: false
+};
 
 // Audio System (Web Audio API)
 let audioCtx = null;
@@ -60,7 +71,7 @@ function playSound(type) {
     }
 }
 
-// Initialize Population
+// Initialize Population & Player
 function generateCars(N, baseBrain = null) {
     const newCars = [];
     for (let i = 0; i < N; i++) {
@@ -75,12 +86,11 @@ function generateCars(N, baseBrain = null) {
         } else {
             brain = new NeuralNetwork([5, 6, 4]);
         }
-        newCars.push(new Car(track.start.x, track.start.y, track.start.angle, brain));
+        newCars.push(new Car(track.start.x, track.start.y, track.start.angle, brain, 'AI'));
     }
     return newCars;
 }
 
-// Start simulation
 function init() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -90,6 +100,10 @@ function init() {
 
     cars = generateCars(POPULATION_SIZE, championBrain);
     bestCar = cars[0];
+
+    // Spawn Player Car (Orange)
+    playerCar = new Car(track.start.x, track.start.y, track.start.angle, null, 'HUMAN');
+
     updateUI();
     requestAnimationFrame(animate);
 }
@@ -122,7 +136,6 @@ function nextGeneration() {
 }
 
 // Main Game/Sim Loop
-let lastTime = 0;
 function animate(time) {
     if (!isPaused) {
         // Multiple physics steps per frame according to simSpeed
@@ -136,7 +149,21 @@ function animate(time) {
 }
 
 function updatePhysics() {
-    // Update all cars
+    // 1. Update Human Player Car
+    if (playerEnabled && playerCar) {
+        playerCar.controls.forward = humanKeys.forward ? 1 : 0;
+        playerCar.controls.reverse = humanKeys.reverse ? 1 : 0;
+        playerCar.controls.left = humanKeys.left ? 1 : 0;
+        playerCar.controls.right = humanKeys.right ? 1 : 0;
+        playerCar.update(track.borders, track.checkpoints);
+
+        const playerLapEl = document.getElementById('playerLapVal');
+        if (playerLapEl) {
+            playerLapEl.textContent = playerCar.laps;
+        }
+    }
+
+    // 2. Update all AI cars
     let aliveCount = 0;
     let highestFitness = -1;
     let currentLeader = bestCar;
@@ -182,7 +209,7 @@ function render() {
     // 1. Draw Track
     track.draw(carCtx);
 
-    // 2. Draw Population
+    // 2. Draw AI Population
     for (let i = 0; i < cars.length; i++) {
         if (cars[i] !== bestCar) {
             cars[i].draw(carCtx, false);
@@ -196,6 +223,11 @@ function render() {
 
         // 4. Draw Neural Network Brain
         Visualizer.drawNetwork(networkCtx, bestCar.brain);
+    }
+
+    // 5. Draw Human Player Car (Orange)
+    if (playerEnabled && playerCar) {
+        playerCar.draw(carCtx);
     }
 }
 
@@ -234,9 +266,26 @@ document.getElementById('resetBtn').addEventListener('click', () => {
         maxFitnessRecord = 0;
         cars = generateCars(POPULATION_SIZE, null);
         bestCar = cars[0];
+        if (playerCar) {
+            playerCar.x = track.start.x;
+            playerCar.y = track.start.y;
+            playerCar.angle = track.start.angle;
+            playerCar.speed = 0;
+            playerCar.laps = 0;
+        }
         updateUI();
     }
 });
+
+// Drive Mode Toggle
+const playerToggleBtn = document.getElementById('playerToggleBtn');
+if (playerToggleBtn) {
+    playerToggleBtn.addEventListener('click', () => {
+        playerEnabled = !playerEnabled;
+        playerToggleBtn.textContent = playerEnabled ? '🎮 Player: ACTIVE' : '🎮 Player: OFF';
+        playerToggleBtn.classList.toggle('active', playerEnabled);
+    });
+}
 
 // Speed multipliers
 const speedBtns = document.querySelectorAll('.speed-btn');
@@ -264,15 +313,29 @@ audioBtn.addEventListener('click', () => {
     audioBtn.classList.toggle('active', soundEnabled);
 });
 
-// Keyboard shortcuts
+// Keyboard Controls for Human Player (WASD & Arrow Keys)
 window.addEventListener('keydown', (e) => {
+    // Player driving keys
+    if (e.key === 'ArrowUp' || e.code === 'KeyW') {
+        humanKeys.forward = true;
+        e.preventDefault();
+    } else if (e.key === 'ArrowDown' || e.code === 'KeyS') {
+        humanKeys.reverse = true;
+        e.preventDefault();
+    } else if (e.key === 'ArrowLeft' || e.code === 'KeyA') {
+        humanKeys.left = true;
+        e.preventDefault();
+    } else if (e.key === 'ArrowRight' || e.code === 'KeyD') {
+        humanKeys.right = true;
+        e.preventDefault();
+    }
+
+    // Simulation shortcuts
     if (e.code === 'Space') {
         e.preventDefault();
         document.getElementById('pauseBtn').click();
     } else if (e.key === 'n' || e.key === 'N') {
         nextGeneration();
-    } else if (e.key === 's' || e.key === 'S') {
-        document.getElementById('saveBtn').click();
     } else if (e.key === '1') {
         document.querySelector('[data-speed="1"]').click();
     } else if (e.key === '2') {
@@ -281,6 +344,18 @@ window.addEventListener('keydown', (e) => {
         document.querySelector('[data-speed="4"]').click();
     } else if (e.key === '0') {
         document.querySelector('[data-speed="10"]').click();
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowUp' || e.code === 'KeyW') {
+        humanKeys.forward = false;
+    } else if (e.key === 'ArrowDown' || e.code === 'KeyS') {
+        humanKeys.reverse = false;
+    } else if (e.key === 'ArrowLeft' || e.code === 'KeyA') {
+        humanKeys.left = false;
+    } else if (e.key === 'ArrowRight' || e.code === 'KeyD') {
+        humanKeys.right = false;
     }
 });
 

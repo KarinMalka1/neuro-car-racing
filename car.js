@@ -8,22 +8,25 @@ class Car {
      * @param {number} y
      * @param {number} angle
      * @param {NeuralNetwork} brain
+     * @param {string} controlType - 'AI' or 'HUMAN'
      */
-    constructor(x, y, angle = 0, brain = null) {
+    constructor(x, y, angle = 0, brain = null, controlType = 'AI') {
         this.x = x;
         this.y = y;
         this.angle = angle;
+        this.controlType = controlType;
 
         this.width = 18;
         this.height = 32;
 
         this.speed = 0;
         this.acceleration = 0.22;
-        this.maxSpeed = 4.8;
+        this.maxSpeed = controlType === 'HUMAN' ? 5.2 : 4.8;
         this.friction = 0.05;
-        this.turnRate = 0.048;
+        this.turnRate = 0.05;
 
         this.damaged = false;
+        this.respawnTimer = 0;
         this.polygon = [];
 
         // Sensors and Brain
@@ -50,6 +53,11 @@ class Car {
      * Update car physics, sensor inputs, neural decisions, collision & fitness.
      */
     update(trackBorders, checkpoints) {
+        if (this.controlType === 'HUMAN') {
+            this.#updateHuman(trackBorders, checkpoints);
+            return;
+        }
+
         if (!this.damaged) {
             // 1. Update sensors & query Neural Network
             this.sensor.update(trackBorders);
@@ -77,13 +85,51 @@ class Car {
         }
     }
 
+    #updateHuman(trackBorders, checkpoints) {
+        if (this.respawnTimer > 0) {
+            this.respawnTimer--;
+            if (this.respawnTimer === 0) {
+                // Respawn at start line
+                const startGate = checkpoints[0];
+                this.x = (startGate[0].x + startGate[1].x) / 2;
+                this.y = (startGate[0].y + startGate[1].y) / 2;
+                this.speed = 0;
+            }
+            return;
+        }
+
+        this.#move();
+        this.polygon = this.#createPolygon();
+
+        // Check crash
+        if (this.#assessDamage(trackBorders)) {
+            this.respawnTimer = 25; // Brief respawn pause
+            this.speed = -1.5; // Bounce back
+            return;
+        }
+
+        // Lap progression
+        const nextGate = checkpoints[this.nextCheckpointIdx];
+        const gateCenter = {
+            x: (nextGate[0].x + nextGate[1].x) / 2,
+            y: (nextGate[0].y + nextGate[1].y) / 2
+        };
+        const dist = Math.hypot(this.x - gateCenter.x, this.y - gateCenter.y);
+        if (dist < 50) {
+            this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
+            if (this.nextCheckpointIdx === 0) {
+                this.laps++;
+            }
+        }
+    }
+
     #move() {
         // Forward / Reverse acceleration
         if (this.controls.forward) {
             this.speed += this.acceleration;
         }
         if (this.controls.reverse) {
-            this.speed -= this.acceleration * 0.5;
+            this.speed -= this.acceleration * 0.55;
         }
 
         // Clamp speed
@@ -222,6 +268,42 @@ class Car {
             ctx.lineTo(this.polygon[i].x, this.polygon[i].y);
         }
         ctx.closePath();
+
+        if (this.controlType === 'HUMAN') {
+            // Player Car: Fiery Orange with pulsing electric shield
+            ctx.fillStyle = '#ff5500';
+            ctx.shadowColor = '#ff3300';
+            ctx.shadowBlur = 16;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.fill();
+            ctx.stroke();
+
+            // Headlights & windshield
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(-this.angle);
+            ctx.fillStyle = '#111726';
+            ctx.fillRect(-this.width * 0.3, -this.height * 0.3, this.width * 0.6, this.height * 0.35);
+
+            // Bright amber headlights
+            ctx.fillStyle = '#ffcc00';
+            ctx.shadowColor = '#ffcc00';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(-this.width * 0.38, -this.height * 0.48, 4, 3);
+            ctx.fillRect(this.width * 0.38 - 4, -this.height * 0.48, 4, 3);
+
+            // Floating "YOU" tag
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = '#000000';
+            ctx.fillText('YOU (P1)', 0, this.height * 0.75);
+            ctx.restore();
+            ctx.restore();
+            return;
+        }
 
         if (this.damaged) {
             // Crashed car: dim and unobtrusive
