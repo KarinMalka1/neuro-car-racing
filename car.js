@@ -1,6 +1,6 @@
 /**
  * Vehicles, AI Pursuit Police, EMP Weapons & Collectibles
- * Featuring 100% Solid Outer Frame & Building Collisions (No clipping or going outside!)
+ * Featuring 100% Solid Vertex-Level Boundary & Building Collisions (Zero clipping!)
  */
 
 class PlayerCar {
@@ -10,7 +10,7 @@ class PlayerCar {
         this.angle = angle;
         this.width = 20;
         this.height = 34;
-        this.radius = 16;
+        this.radius = 18;
 
         this.speed = 0;
         this.baseMaxSpeed = 7.6;
@@ -73,14 +73,18 @@ class PlayerCar {
         this.x -= Math.sin(this.angle) * this.speed;
         this.y -= Math.cos(this.angle) * this.speed;
 
-        // 100% Solid Collision: Prevents exiting canvas frame & driving over the 4 building squares
+        // 100% Solid Physical Resolution: Prevents any vertex from penetrating boundaries or buildings
         const didCollide = CarUtils.resolveCityCollisions(this, city);
         if (didCollide) {
-            this.hp = Math.max(0, this.hp - 2);
+            this.hp = Math.max(0, this.hp - 1.5);
             this.hitFlash = 8;
         }
 
         this.polygon = this.#createPolygon();
+    }
+
+    createPolygon() {
+        return this.#createPolygon();
     }
 
     #createPolygon() {
@@ -164,7 +168,7 @@ class CopCar {
 
         this.width = isSwat ? 24 : 19;
         this.height = isSwat ? 38 : 32;
-        this.radius = isSwat ? 18 : 15;
+        this.radius = isSwat ? 19 : 16;
 
         this.speed = 0;
         this.maxSpeed = isSwat ? 2.6 : 3.4;
@@ -221,14 +225,18 @@ class CopCar {
         this.x -= Math.sin(this.angle) * this.speed;
         this.y -= Math.cos(this.angle) * this.speed;
 
-        // Solid wall and building resolution
+        // Solid boundary & building collision
         const didCollide = CarUtils.resolveCityCollisions(this, city);
         if (didCollide) {
-            this.hp -= 6;
+            this.hp -= 5;
         }
 
         this.polygon = this.#createPolygon();
         if (this.hp <= 0) this.isDead = true;
+    }
+
+    createPolygon() {
+        return this.#createPolygon();
     }
 
     #createPolygon() {
@@ -341,88 +349,90 @@ class Collectible {
 class CarUtils {
     /**
      * Complete physical collision solver for city boundaries and building blocks.
-     * Prevents cars from exiting the frame or entering building interiors.
+     * Checks polygon corners to strictly prevent cars from penetrating walls or buildings.
      */
     static resolveCityCollisions(car, city) {
         if (!city) return false;
-        const r = car.radius || 16;
         let collided = false;
 
         const width = city.width || 1060;
         const height = city.height || 700;
+        const outerMargin = 40; // Wall boundary at x=35, so 40 ensures zero pixel crossing
 
-        // 1. HARD OUTER FRAME BOUNDARY CLAMP (Car can NEVER exit the screen!)
-        const minX = 40 + r;
-        const maxX = width - 40 - r;
-        const minY = 40 + r;
-        const maxY = height - 40 - r;
+        // 1. HARD OUTER FRAME BOUNDARY (Guarantees every corner of the car stays inside)
+        for (let iter = 0; iter < 2; iter++) {
+            const poly = car.createPolygon();
+            for (let i = 0; i < poly.length; i++) {
+                const pt = poly[i];
+                if (pt.x < outerMargin) {
+                    car.x += (outerMargin - pt.x);
+                    car.speed = -0.8;
+                    collided = true;
+                } else if (pt.x > width - outerMargin) {
+                    car.x -= (pt.x - (width - outerMargin));
+                    car.speed = -0.8;
+                    collided = true;
+                }
 
-        if (car.x < minX) {
-            car.x = minX;
-            car.speed = -1.0;
-            collided = true;
-        } else if (car.x > maxX) {
-            car.x = maxX;
-            car.speed = -1.0;
-            collided = true;
-        }
-
-        if (car.y < minY) {
-            car.y = minY;
-            car.speed = -1.0;
-            collided = true;
-        } else if (car.y > maxY) {
-            car.y = maxY;
-            car.speed = -1.0;
-            collided = true;
+                if (pt.y < outerMargin) {
+                    car.y += (outerMargin - pt.y);
+                    car.speed = -0.8;
+                    collided = true;
+                } else if (pt.y > height - outerMargin) {
+                    car.y -= (pt.y - (height - outerMargin));
+                    car.speed = -0.8;
+                    collided = true;
+                }
+            }
         }
 
         // 2. THE 4 SOLID BUILDING SQUARES (Cars can NEVER drive on top of them!)
         const buildings = city.buildings || [];
         for (const b of buildings) {
-            const clampX = Math.max(b.x, Math.min(b.x + b.w, car.x));
-            const clampY = Math.max(b.y, Math.min(b.y + b.h, car.y));
-            let dx = car.x - clampX;
-            let dy = car.y - clampY;
-            let dist = Math.hypot(dx, dy);
+            let poly = car.createPolygon();
+            const cMinX = Math.min(...poly.map(p => p.x));
+            const cMaxX = Math.max(...poly.map(p => p.x));
+            const cMinY = Math.min(...poly.map(p => p.y));
+            const cMaxY = Math.max(...poly.map(p => p.y));
 
-            if (dist === 0) {
-                // Car center penetrates inside building! Instantly push to closest outer edge
-                const distLeft = car.x - b.x;
-                const distRight = (b.x + b.w) - car.x;
-                const distTop = car.y - b.y;
-                const distBottom = (b.y + b.h) - car.y;
-                const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+            // Check AABB overlap between car and building
+            if (cMaxX >= b.x && cMinX <= b.x + b.w && cMaxY >= b.y && cMinY <= b.y + b.h) {
+                const bcx = b.x + b.w / 2;
+                const bcy = b.y + b.h / 2;
+                const normX = (car.x - bcx) / (b.w / 2);
+                const normY = (car.y - bcy) / (b.h / 2);
 
-                if (minDist === distLeft) car.x = b.x - r - 2;
-                else if (minDist === distRight) car.x = b.x + b.w + r + 2;
-                else if (minDist === distTop) car.y = b.y - r - 2;
-                else car.y = b.y + b.h + r + 2;
+                if (Math.abs(normX) > Math.abs(normY)) {
+                    // Push out horizontally
+                    if (normX < 0) car.x -= (cMaxX - (b.x - 2));
+                    else car.x += ((b.x + b.w + 2) - cMinX);
+                } else {
+                    // Push out vertically
+                    if (normY < 0) car.y -= (cMaxY - (b.y - 2));
+                    else car.y += ((b.y + b.h + 2) - cMinY);
+                }
 
-                car.speed = -1.2;
-                collided = true;
-            } else if (dist < r) {
-                // Penetrating building boundary
-                car.x += (dx / dist) * (r - dist + 2);
-                car.y += (dy / dist) * (r - dist + 2);
-                car.speed = -1.2;
+                car.speed = -1.0;
                 collided = true;
             }
         }
 
         // 3. CENTRAL ROUNDABOUT PLAZA (Solid circular obstacle)
         if (city.roundabout) {
-            const rdx = car.x - city.roundabout.x;
-            const rdy = car.y - city.roundabout.y;
-            const dist = Math.hypot(rdx, rdy);
-            const minDist = city.roundabout.radius + r;
-
-            if (dist < minDist) {
-                const angle = dist > 0 ? Math.atan2(rdy, rdx) : 0;
-                car.x = city.roundabout.x + Math.cos(angle) * (minDist + 2);
-                car.y = city.roundabout.y + Math.sin(angle) * (minDist + 2);
-                car.speed = -1.2;
-                collided = true;
+            const r = city.roundabout;
+            let poly = car.createPolygon();
+            for (let i = 0; i < poly.length; i++) {
+                const pt = poly[i];
+                const dist = Math.hypot(pt.x - r.x, pt.y - r.y);
+                const safeRadius = r.radius + 3;
+                if (dist < safeRadius) {
+                    const angle = Math.atan2(car.y - r.y, car.x - r.x);
+                    const push = safeRadius - dist;
+                    car.x += Math.cos(angle) * push;
+                    car.y += Math.sin(angle) * push;
+                    car.speed = -1.0;
+                    collided = true;
+                }
             }
         }
 
