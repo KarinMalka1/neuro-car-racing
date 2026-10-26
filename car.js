@@ -11,11 +11,11 @@ class PlayerCar {
         this.height = 34;
 
         this.speed = 0;
-        this.baseMaxSpeed = 5.8;
+        this.baseMaxSpeed = 7.6; // Faster top speed
         this.maxSpeed = this.baseMaxSpeed;
-        this.acceleration = 0.28;
-        this.friction = 0.052;
-        this.turnRate = 0.056;
+        this.acceleration = 0.38; // Faster, responsive acceleration
+        this.friction = 0.048;
+        this.turnRate = 0.062; // Agile steering
 
         this.hp = 100;
         this.maxHp = 100;
@@ -169,10 +169,10 @@ class CopCar {
         this.height = isSwat ? 38 : 32;
 
         this.speed = 0;
-        this.maxSpeed = isSwat ? 4.2 : 5.1;
-        this.acceleration = isSwat ? 0.18 : 0.22;
+        this.maxSpeed = isSwat ? 2.6 : 3.4; // Slower velocity so player can outrun them
+        this.acceleration = isSwat ? 0.12 : 0.15; // Gentler acceleration
         this.friction = 0.05;
-        this.turnRate = isSwat ? 0.038 : 0.048;
+        this.turnRate = isSwat ? 0.032 : 0.042; // More manageable turning
 
         this.hp = isSwat ? 60 : 30;
         this.maxHp = this.hp;
