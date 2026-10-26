@@ -14,10 +14,10 @@
             <span class="subtitle">// POLICE PURSUIT SURVIVAL</span>
         </div>
         <div class="quick-actions">
-            <!-- Wanted Stars -->
-            <div class="wanted-container">
-                <span style="font-size: 0.72rem; color: #8492a6; font-weight: 700;">WANTED:</span>
-                <span id="wantedStars" class="wanted-stars">⭐</span>
+            <!-- Win Countdown Timer in Header -->
+            <div class="wanted-container" style="border-color: rgba(57, 255, 20, 0.4);">
+                <span style="font-size: 0.72rem; color: #8492a6; font-weight: 700;">ESCAPE IN:</span>
+                <span id="escapeTimerVal" style="font-size: 1.15rem; color: #39ff14; font-weight: 800; font-family: var(--font-mono);">35.0s</span>
             </div>
             <!-- Restart Button -->
             <button id="restartBtn" class="btn btn-danger" style="font-weight: 700;">🔄 כפתור: שחק שוב (Restart)</button>
@@ -34,32 +34,33 @@
             <div id="controlsNotice" style="margin-top: 10px; font-size: 0.88rem; color: #ffaa00; font-weight: 700; text-align: center;">
                 🔥 <span style="color: #ff5500;">DRIVE:</span> <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; 
                 <span style="color: #00f3ff;">NITRO:</span> Hold <kbd>Shift</kbd> &nbsp;|&nbsp; 
-                <span style="color: #39ff14;">EMP BLAST:</span> Press <kbd>Space</kbd> ⚡
+                <span style="color: #39ff14;">EMP BLAST:</span> Press <kbd>Space</kbd> ⚡ &nbsp;|&nbsp;
+                <span style="color: #ffe600;">MISSION: Survive 35s to WIN!</span>
             </div>
 
-            <!-- BUSTED / GAME OVER MODAL -->
-            <div id="bustedModal" class="victory-modal hidden">
+            <!-- DYNAMIC VICTORY / BUSTED MODAL -->
+            <div id="endGameModal" class="victory-modal hidden">
                 <div class="victory-card">
-                    <div class="trophy-icon">🚨</div>
-                    <h2 style="color: #ff0055; font-size: 2.2rem; letter-spacing: 2px;">BUSTED!</h2>
-                    <p style="color: #cbd5e1; margin-bottom: 12px;">You were cornered by the Police Department!</p>
+                    <div id="modalIcon" class="trophy-icon">🏆</div>
+                    <h2 id="modalTitle" style="font-size: 2.1rem; letter-spacing: 1.5px; margin-bottom: 6px;">YOU ESCAPED! YOU WON!</h2>
+                    <p id="modalSubtitle" style="color: #cbd5e1; margin-bottom: 14px;">The police lost your signal!</p>
                     
                     <div class="busted-stats-grid">
                         <div class="busted-stat">
-                            <div class="stat-label">Survived</div>
-                            <div id="bustedSurviveTime" class="stat-val" style="color: #ffe600;">0.0s</div>
+                            <div id="modalStatTimeLabel" class="stat-label">Escape Time</div>
+                            <div id="modalStatTime" class="stat-val" style="color: #ffe600;">35.0s</div>
                         </div>
                         <div class="busted-stat">
                             <div class="stat-label">Cash Stashed</div>
-                            <div id="bustedCash" class="stat-val" style="color: #39ff14;">$0</div>
+                            <div id="modalCash" class="stat-val" style="color: #39ff14;">$0</div>
                         </div>
                         <div class="busted-stat">
-                            <div class="stat-label">Wanted Peak</div>
-                            <div id="bustedStars" class="stat-val" style="color: #ff5500;">⭐</div>
+                            <div id="modalStatusLabel" class="stat-label">Mission</div>
+                            <div id="modalStatus" class="stat-val" style="color: #00f3ff;">CLEARED ✅</div>
                         </div>
                         <div class="busted-stat">
-                            <div class="stat-label">All-Time Best</div>
-                            <div id="bustedBest" class="stat-val" style="color: #00f3ff;">0.0s</div>
+                            <div class="stat-label">Next Target</div>
+                            <div class="stat-val" style="color: #ffaa00;">STAGE 2 🚀</div>
                         </div>
                     </div>
 
@@ -91,8 +92,8 @@
             <!-- Live Telemetry -->
             <div class="panel-card">
                 <div class="panel-title" style="color: #00f3ff;">
-                    <span>Police Dispatch Telemetry</span>
-                    <span style="font-size: 0.7rem; color: #ff0055;">● CHASE ACTIVE</span>
+                    <span>Mission Telemetry</span>
+                    <span style="font-size: 0.7rem; color: #39ff14;">● SURVIVAL ACTIVE</span>
                 </div>
                 <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
                     <div class="stat-box">
@@ -100,33 +101,31 @@
                         <div class="stat-val" style="color: #00f3ff;"><span id="speedKmhVal">0</span><span style="font-size: 0.65rem; color: #8492a6;"> KM/H</span></div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Survival Time</div>
-                        <div id="surviveTimeVal" class="stat-val" style="color: #ffe600;">0.0s</div>
+                        <div class="stat-label">Police Chasing</div>
+                        <div id="copsCountVal" class="stat-val" style="color: #ff0055;">1 / 2</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Cash Collected</div>
                         <div id="cashScoreVal" class="stat-val" style="color: #39ff14; font-size: 1.05rem;">$0</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Police Units</div>
-                        <div id="copsCountVal" class="stat-val" style="color: #ff0055;">2</div>
+                        <div class="stat-label">Target Goal</div>
+                        <div class="stat-val" style="color: #ffe600; font-size: 0.95rem;">ESCAPE!</div>
                     </div>
                 </div>
             </div>
 
             <!-- Survival Guide for Mentor -->
-            <div class="panel-card" style="background: rgba(14, 20, 36, 0.95);">
-                <div class="panel-title" style="color: #ffe600;">
-                    <span>🎮 Mission Objectives</span>
+            <div class="panel-card" style="background: rgba(14, 20, 36, 0.95); border-color: rgba(57, 255, 20, 0.35);">
+                <div class="panel-title" style="color: #39ff14;">
+                    <span>🏁 HOW TO WIN THE GAME</span>
                 </div>
                 <div style="font-size: 0.8rem; line-height: 1.6; color: #cbd5e1;">
-                    <p>• <b>Survive:</b> Police AI cruisers hunt your car down and attempt to ram you!</p>
-                    <p>• <b>Lure & Smash:</b> Steer around buildings so cops crash into walls and explode (+$1,000)!</p>
-                    <p>• <b>Power-Ups:</b></p>
-                    <p style="margin-left: 8px;">💰 <b>Cash</b> (+$500 to your score)</p>
-                    <p style="margin-left: 8px;">🔧 <b>Wrench</b> (+35% Health repair)</p>
-                    <p style="margin-left: 8px;">⚡ <b>EMP</b> (Press <kbd>Space</kbd> to blast surrounding cops away!)</p>
-                    <p>• <b>Wanted Stars:</b> Scale every 15s bringing fast cruisers and heavy SWAT vans!</p>
+                    <p>• <b>WIN GOAL:</b> Survive for <b>35 seconds</b> to escape the city and WIN!</p>
+                    <p>• <b>SPEED UP WIN:</b> Collecting 💰 <b>Cash</b> cuts <b>-3s</b> from your escape time!</p>
+                    <p>• <b>FEW POLICE:</b> Only <b>1 to 2 police cars</b> exist in total!</p>
+                    <p>• <b>CRASH COPS:</b> Trick police into hitting buildings to blow them up (<b>-4s escape bonus!</b>).</p>
+                    <p>• <b>RESTART:</b> Click <b style="color: #ff5500;">"שחק שוב"</b> or press <kbd>R</kbd> anytime.</p>
                 </div>
             </div>
         </aside>
