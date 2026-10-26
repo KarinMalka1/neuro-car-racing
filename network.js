@@ -5,6 +5,11 @@
 
 class NeuralNetwork {
     /**
+     * Pre-trained champion brain that already knows how to drive smoothly around the track!
+     */
+    static DEFAULT_CHAMPION = {"levels":[{"inputs":[null,null,null,null,null],"outputs":[null,null,null,null,null,null],"biases":[-0.19605273233481174,0.34700374512770477,-0.41072120105610144,0.44250489184570363,-0.23631489183882864,0.8024657631169512],"weights":[[0.03843945483772693,-0.8310523733201943,1,-0.6046538180918029,0.24131641444380172,0.874773036206506],[0.98095051793316,0.9156529116992785,0.38995433066459617,0.7797412003277334,0.38468634179582395,-0.46492387356794784],[0.8300814154822473,0.12297103321025227,0.8394786109641439,0.07184714971078812,-0.454081642994894,-0.7261678128536733],[0.5268314597761238,-0.40980302114078837,-0.5937554643050198,1,0.11240345246084314,-0.13161740025610377],[-0.5867827587412688,0.002884445650489042,-0.005868038488426722,0.8210995586583414,0.9270912037524135,-0.8767617720943973]]},{"inputs":[null,null,null,null,null,null],"outputs":[null,null,null,null],"biases":[0.6674777771001872,-1,0.6523069300987692,-0.22708048011492699],"weights":[[0.05198189444150739,0.6096672148000337,-0.6532533438612621,-0.2923422704839464],[-0.6626453783769175,-0.2401892987345326,0.18308445709543694,1],[-0.7305991451825296,-0.8551991198433849,-0.2900862481555303,0.9854086541485958],[0.9679804709577138,0.5198333641394919,0.06870462861653655,-0.802840267996412],[0.6809533228239059,0.5208874464204497,0.44707171289087255,-0.6409156377595023],[0.74206632134211,-0.7028869769579851,-0.462152985813152,0.6285607576697644]]}]};
+
+    /**
      * @param {number[]} neuronCounts - [5, 6, 4] for [input, hidden, output]
      */
     constructor(neuronCounts = [5, 6, 4]) {
@@ -39,7 +44,6 @@ class NeuralNetwork {
             for (let i = 0; i < level.biases.length; i++) {
                 if (Math.random() < rate) {
                     level.biases[i] += (Math.random() * 2 - 1) * amount;
-                    // Clamp to [-1, 1]
                     level.biases[i] = Math.max(-1, Math.min(1, level.biases[i]));
                 }
             }
@@ -48,7 +52,6 @@ class NeuralNetwork {
                 for (let j = 0; j < level.weights[i].length; j++) {
                     if (Math.random() < rate) {
                         level.weights[i][j] += (Math.random() * 2 - 1) * amount;
-                        // Clamp to [-1, 1]
                         level.weights[i][j] = Math.max(-1, Math.min(1, level.weights[i][j]));
                     }
                 }
@@ -78,11 +81,11 @@ class NeuralNetwork {
     }
 
     /**
-     * Deserialize from JSON string.
+     * Deserialize from JSON string or object.
      */
-    static deserialize(jsonString) {
+    static deserialize(source) {
         try {
-            const data = JSON.parse(jsonString);
+            const data = (typeof source === 'string') ? JSON.parse(source) : source;
             const net = new NeuralNetwork();
             net.levels = data.levels.map(l => {
                 const lvl = new Level(l.inputs.length, l.outputs.length);
@@ -115,20 +118,15 @@ class Level {
     static #randomize(level) {
         for (let i = 0; i < level.inputs.length; i++) {
             for (let j = 0; j < level.outputs.length; j++) {
-                // Initialize weights between -1 and 1
                 level.weights[i][j] = Math.random() * 2 - 1;
             }
         }
 
         for (let i = 0; i < level.biases.length; i++) {
-            // Initialize biases between -1 and 1
             level.biases[i] = Math.random() * 2 - 1;
         }
     }
 
-    /**
-     * Computes level outputs using weighted sum + bias, with activation.
-     */
     static feedForward(givenInputs, level) {
         for (let i = 0; i < level.inputs.length; i++) {
             level.inputs[i] = givenInputs[i];
@@ -141,9 +139,7 @@ class Level {
             }
             sum += level.biases[j];
 
-            // Tanh activation function clamped between -1 and 1
             const activated = Math.tanh(sum);
-            // Output activation: > 0 gives positive control command (1), else 0
             level.outputs[j] = activated > 0 ? 1 : 0;
         }
 

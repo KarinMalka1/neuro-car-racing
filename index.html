@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuroevolution 2D Car Racing AI — Human vs AI</title>
+    <title>Neuroevolution 2D Car Racing AI — Championship Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <div class="logo-area">
             <span class="logo-icon">🏎️</span>
-            <h1>Neuroevolution AI</h1>
-            <span class="subtitle">// HUMAN VS 100 AI RACERS</span>
+            <h1>Neuroevolution GP</h1>
+            <span class="subtitle">// HUMAN VS NEURAL AI CHAMPIONSHIP</span>
         </div>
         <div class="quick-actions">
-            <button id="playerToggleBtn" class="btn active">🎮 Player (WASD): ON</button>
-            <button id="audioBtn" class="btn">🔇 Sound: OFF</button>
-            <button id="saveBtn" class="btn btn-primary">💾 Save Brain</button>
-            <button id="resetBtn" class="btn btn-danger">↺ Reset All</button>
+            <button id="loadProBtn" class="btn btn-primary" title="Load trained AI champion">👑 Load Pro AI</button>
+            <button id="resetBtn" class="btn btn-danger" title="Train from scratch at Generation 1">🧪 Train From Scratch</button>
+            <button id="audioBtn" class="btn active">🔊 Sound: ON</button>
+            <button id="saveBtn" class="btn">💾 Save Brain</button>
         </div>
     </header>
 
@@ -25,35 +25,57 @@
         <!-- Main Circuit Viewport -->
         <section class="canvas-wrapper">
             <canvas id="carCanvas" width="1060" height="700"></canvas>
-            <div style="margin-top: 10px; font-size: 0.85rem; color: #ff5500; font-weight: 700; text-align: center; letter-spacing: 0.5px;">
-                🔥 YOU DRIVE THE ORANGE CAR: Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> Arrow Keys to Race Against the AI!
+            <div style="margin-top: 10px; font-size: 0.88rem; color: #ffaa00; font-weight: 700; text-align: center; letter-spacing: 0.5px;">
+                🔥 <span style="color: #ff5500;">YOU ARE THE ORANGE CAR:</span> Drive with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> &nbsp;|&nbsp; Hold <kbd>Shift</kbd> for <span style="color: #00f3ff;">NITRO BOOST 🚀</span>
             </div>
         </section>
 
         <!-- Sidebar Dashboard -->
         <aside class="sidebar">
-            <!-- Live Telemetry Stats -->
-            <div class="panel-card">
-                <div class="panel-title">
-                    <span>Telemetry & Race Stats</span>
-                    <span style="font-size: 0.7rem; color: #39ff14;">● LIVE</span>
+            <!-- Player Race HUD -->
+            <div class="panel-card" style="border-color: rgba(255, 85, 0, 0.4);">
+                <div class="panel-title" style="color: #ff7733;">
+                    <span>Your Race Dashboard</span>
+                    <span id="rankVal" style="font-size: 0.85rem; color: #ffe600; font-weight: 800;">🥇 1st</span>
                 </div>
                 <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="stat-box">
+                        <div class="stat-label">Speed</div>
+                        <div class="stat-val" style="color: #00f3ff;"><span id="speedKmhVal">0</span><span style="font-size: 0.65rem; color: #8492a6;"> KM/H</span></div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Lap Time</div>
+                        <div id="currentLapVal" class="stat-val" style="color: #ffe600;">0.0s</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Best Lap</div>
+                        <div id="bestLapVal" class="stat-val" style="color: #39ff14;">--</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Laps</div>
+                        <div id="playerLapVal" class="stat-val" style="color: #ff5500;">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Telemetry Stats -->
+            <div class="panel-card">
+                <div class="panel-title">
+                    <span>AI Swarm Telemetry</span>
+                    <span style="font-size: 0.7rem; color: #39ff14;">● 60 CARS</span>
+                </div>
+                <div class="stats-grid">
                     <div class="stat-box">
                         <div class="stat-label">Gen</div>
                         <div id="genVal" class="stat-val">1</div>
                     </div>
                     <div class="stat-box active-cars">
                         <div class="stat-label">AI Alive</div>
-                        <div id="aliveVal" class="stat-val">100</div>
+                        <div id="aliveVal" class="stat-val">60</div>
                     </div>
                     <div class="stat-box highlight">
                         <div class="stat-label">Fitness</div>
-                        <div id="fitnessVal" class="stat-val">0</div>
-                    </div>
-                    <div class="stat-box" style="border-color: rgba(255, 85, 0, 0.4);">
-                        <div class="stat-label" style="color: #ffaa77;">Your Laps</div>
-                        <div id="playerLapVal" class="stat-val" style="color: #ff5500;">0</div>
+                        <div id="fitnessVal" class="stat-val">15737</div>
                     </div>
                 </div>
             </div>
@@ -65,7 +87,7 @@
                     <span style="font-size: 0.7rem; color: #00f3ff;">[5-6-4 MLP]</span>
                 </div>
                 <div class="network-container">
-                    <canvas id="networkCanvas" width="300" height="240"></canvas>
+                    <canvas id="networkCanvas" width="300" height="230"></canvas>
                     <div class="network-legend">
                         <span class="legend-item"><span class="dot dot-pos"></span> +Weight</span>
                         <span class="legend-item"><span class="dot dot-neg"></span> -Weight</span>
@@ -74,10 +96,10 @@
                 </div>
             </div>
 
-            <!-- Simulation Controls -->
+            <!-- Evolution & Speed Controls -->
             <div class="panel-card">
                 <div class="panel-title">
-                    <span>Evolution Controls</span>
+                    <span>Simulation Controls</span>
                 </div>
 
                 <!-- Simulation Speed -->
@@ -104,12 +126,6 @@
                 <div class="btn-group">
                     <button id="pauseBtn" class="btn">⏸ Pause</button>
                     <button id="nextGenBtn" class="btn btn-primary">⏭ Next Gen</button>
-                </div>
-
-                <!-- Hotkey Cheatsheet -->
-                <div class="hotkeys">
-                    <p><kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> or <kbd>Arrows</kbd> Drive Your Car</p>
-                    <p><kbd>Space</kbd> Pause &nbsp;|&nbsp; <kbd>N</kbd> Next Gen &nbsp;|&nbsp; <kbd>1</kbd>/<kbd>2</kbd>/<kbd>4</kbd>/<kbd>0</kbd> Speed</p>
                 </div>
             </div>
         </aside>

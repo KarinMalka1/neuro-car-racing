@@ -1,5 +1,5 @@
 /**
- * 2D Car Kinematics, Collision Polygon, Neural Controls & Fitness
+ * 2D Car Kinematics, Collision Polygon, Drift Mechanics & Fitness
  */
 
 class Car {
@@ -20,11 +20,14 @@ class Car {
         this.height = 32;
 
         this.speed = 0;
-        this.acceleration = controlType === 'HUMAN' ? 0.25 : 0.22;
-        this.maxSpeed = controlType === 'HUMAN' ? 5.2 : 4.8;
+        this.acceleration = controlType === 'HUMAN' ? 0.26 : 0.22;
+        this.baseMaxSpeed = controlType === 'HUMAN' ? 5.4 : 4.8;
+        this.maxSpeed = this.baseMaxSpeed;
         this.friction = 0.05;
-        this.turnRate = controlType === 'HUMAN' ? 0.055 : 0.048;
+        this.turnRate = controlType === 'HUMAN' ? 0.054 : 0.048;
 
+        this.isBoosting = false;
+        this.isSkidding = false;
         this.damaged = false;
         this.hitWallFlash = 0;
 
@@ -36,16 +39,22 @@ class Car {
             forward: 0,
             reverse: 0,
             left: 0,
-            right: 0
+            right: 0,
+            boost: 0
         };
 
-        // Genetic fitness tracking
+        // Genetic fitness & timing
         this.fitness = 0;
         this.checkpointsPassed = 0;
         this.nextCheckpointIdx = 1;
         this.laps = 0;
         this.framesSinceCheckpoint = 0;
         this.stuckFrames = 0;
+
+        // Lap Timing (in seconds)
+        this.lapStartFrame = 0;
+        this.currentLapFrames = 0;
+        this.bestLapSeconds = null;
 
         // Immediately compute bounding polygon
         this.polygon = this.#createPolygon();
@@ -90,8 +99,16 @@ class Car {
     }
 
     #updateHuman(trackBorders, checkpoints) {
+        this.currentLapFrames++;
         if (this.hitWallFlash > 0) {
             this.hitWallFlash--;
+        }
+
+        // Nitro Boost toggle
+        this.isBoosting = Boolean(this.controls.boost);
+        this.maxSpeed = this.isBoosting ? this.baseMaxSpeed * 1.35 : this.baseMaxSpeed;
+        if (this.isBoosting && this.controls.forward) {
+            this.speed += this.acceleration * 1.5;
         }
 
         this.#move();
@@ -99,12 +116,11 @@ class Car {
 
         // Check if player bumped into wall
         if (this.#assessDamage(trackBorders)) {
-            // Bounce back and slow down without resetting progress
-            this.speed = -1.2;
+            // Bounce back and slow down smoothly without killing the player
+            this.speed = -1.5;
             this.hitWallFlash = 12;
-            // Push slightly back toward center
-            this.x += Math.sin(this.angle) * 3;
-            this.y += Math.cos(this.angle) * 3;
+            this.x += Math.sin(this.angle) * 3.5;
+            this.y += Math.cos(this.angle) * 3.5;
             this.polygon = this.#createPolygon();
         }
 
@@ -120,6 +136,14 @@ class Car {
                 this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
                 if (this.nextCheckpointIdx === 0) {
                     this.laps++;
+                    const lapSec = (this.currentLapFrames / 60).toFixed(2);
+                    if (!this.bestLapSeconds || parseFloat(lapSec) < parseFloat(this.bestLapSeconds)) {
+                        this.bestLapSeconds = lapSec;
+                    }
+                    this.currentLapFrames = 0;
+                    if (window.triggerCelebration) {
+                        window.triggerCelebration(lapSec);
+                    }
                 }
             }
         }
@@ -152,14 +176,17 @@ class Car {
             if (this.speed > 0) this.speed = 0;
         }
 
-        // Steering (only if moving)
-        if (Math.abs(this.speed) > 0.05) {
+        // Steering & Drift detection
+        this.isSkidding = false;
+        if (Math.abs(this.speed) > 0.1) {
             const flip = this.speed > 0 ? 1 : -1;
             if (this.controls.left) {
                 this.angle += this.turnRate * flip;
+                if (Math.abs(this.speed) > 3.2) this.isSkidding = true;
             }
             if (this.controls.right) {
                 this.angle -= this.turnRate * flip;
+                if (Math.abs(this.speed) > 3.2) this.isSkidding = true;
             }
         }
 
@@ -206,10 +233,10 @@ class Car {
     #updateFitness(checkpoints) {
         this.framesSinceCheckpoint++;
 
-        // Detect if car is completely stuck/stopped for too long
+        // Auto-cull cars that are dead stopped
         if (Math.abs(this.speed) < 0.2) {
             this.stuckFrames++;
-            if (this.stuckFrames > 180) { // 3 seconds of zero motion
+            if (this.stuckFrames > 200) {
                 this.damaged = true;
                 return;
             }
@@ -217,8 +244,8 @@ class Car {
             this.stuckFrames = 0;
         }
 
-        // Generous checkpoint timeout: 8 seconds to reach next gate
-        if (this.framesSinceCheckpoint > 480) {
+        // Generous checkpoint timeout: 10 seconds to reach next gate
+        if (this.framesSinceCheckpoint > 600) {
             this.damaged = true;
             return;
         }
@@ -274,8 +301,8 @@ class Car {
         if (this.controlType === 'HUMAN') {
             // Player Car: Fiery Orange
             ctx.fillStyle = this.hitWallFlash > 0 ? '#ff0033' : '#ff5500';
-            ctx.shadowColor = '#ff5500';
-            ctx.shadowBlur = 14;
+            ctx.shadowColor = this.isBoosting ? '#00f3ff' : '#ff5500';
+            ctx.shadowBlur = this.isBoosting ? 22 : 14;
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2.5;
             ctx.fill();
@@ -301,7 +328,21 @@ class Car {
             ctx.textAlign = 'center';
             ctx.shadowBlur = 4;
             ctx.shadowColor = '#000000';
-            ctx.fillText('YOU', 0, this.height * 0.75);
+            ctx.fillText('YOU (P1)', 0, this.height * 0.75);
+
+            // Nitro Boost Flame Tail
+            if (this.isBoosting) {
+                ctx.fillStyle = '#00f3ff';
+                ctx.shadowColor = '#00f3ff';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.moveTo(-4, this.height * 0.5);
+                ctx.lineTo(0, this.height * 0.5 + 16 + Math.random() * 8);
+                ctx.lineTo(4, this.height * 0.5);
+                ctx.closePath();
+                ctx.fill();
+            }
+
             ctx.restore();
             ctx.restore();
             return;
@@ -309,8 +350,8 @@ class Car {
 
         if (this.damaged) {
             // Crashed car: dim
-            ctx.fillStyle = 'rgba(120, 30, 40, 0.1)';
-            ctx.strokeStyle = 'rgba(200, 40, 40, 0.15)';
+            ctx.fillStyle = 'rgba(120, 30, 40, 0.08)';
+            ctx.strokeStyle = 'rgba(200, 40, 40, 0.12)';
             ctx.lineWidth = 1;
             ctx.fill();
             ctx.stroke();
