@@ -1,59 +1,70 @@
-# 🏎️ Neuroevolution 2D Car Racing Simulation
+# 🚨 Neon Getaway — Police Chase Survival
 
-A high-performance, real-time autonomous car racing simulation using genetic algorithms and feed-forward neural networks. Built from scratch with vanilla HTML5, CSS3, and JavaScript — running entirely in the browser with **zero dependencies, no backend, and no external libraries**.
+A high-octane, real-time arcade police pursuit survival game built from scratch with **vanilla HTML5 Canvas, CSS3, and JavaScript**. Runs 100% in the browser with **zero dependencies, no backend, and no external libraries**.
 
-Hosted on GitHub Pages.
-
----
-
-## 🌟 Features & Architecture
-
-1. **Procedural Closed-Loop Racetrack (`track.js`)**:
-   - Catmull-Rom smoothed circuit with realistic straights, sweeping curves, chicanes, and a technical hairpin.
-   - Perpendicular checkpoint gates accurately measure distance and lap completion.
-   - Dual neon boundary barriers with polygon-to-segment collision detection.
-
-2. **Kinematic Car Physics (`car.js`)**:
-   - 2D top-down car kinematics (acceleration, friction, drifting, steering, reverse).
-   - 4-point bounding box polygon collision testing against track walls.
-   - Stuck/timeout detection to automatically cull inactive cars and accelerate evolution.
-
-3. **Ray-Casting Sensors (`sensor.js`)**:
-   - 5 directional ray-casters extending from the front bumper.
-   - High-speed line-line intersection math measuring normalized distance to walls.
-   - Visualized in real time with laser beams and collision spark indicators for the lead car.
-
-4. **Custom Neural Network Brain (`network.js`)**:
-   - Built from scratch: 5 Input nodes (sensor rays) → 6 Hidden nodes → 4 Output nodes (Accelerate, Reverse, Steer Left, Steer Right).
-   - Hyperbolic tangent (tanh) activation with discrete actuation thresholds.
-   - Genetic mutation engine with configurable mutation rate and elitism (the champion brain survives intact).
-
-5. **Live Brain Visualizer (`visualizer.js`)**:
-   - Real-time animated neural network HUD showing synaptic weights (cyan positive, magenta negative) and active firing neurons.
-
-6. **Cyberpunk Dashboard & Audio FX (`main.js` & `style.css`)**:
-   - Live telemetry: Generation counter, cars alive, maximum fitness record.
-   - Simulation speed toggles: **1x, 2x, 4x, 10x** (train 10 generations in seconds!).
-   - Web Audio API procedural sound effects for checkpoints and evolutionary breakthroughs.
-   - LocalStorage persistence to save and load champion brains across sessions.
+🌐 **Play Live Demo on GitHub Pages:**  
+👉 **[https://karinmalka1.github.io/neuro-car-racing/](https://karinmalka1.github.io/neuro-car-racing/)**
 
 ---
 
-## 🎮 Controls & Hotkeys
+## 🌟 Game Overview & Features
+
+You are a neon getaway driver in a cyberpunk metropolis. AI police pursuit units are hunting you down. Your mission: **survive as long as you can, lure police into building walls to destroy them, collect cash, and trigger EMP shockwaves!**
+
+### 🎮 Core Mechanics & Architecture
+1. **Dynamic Pursuit AI (`car.js`)**:
+   - Police cruisers calculate intercept trajectories toward your car.
+   - 3-feeler raycasting obstacle avoidance lets police navigate city intersections and avenues.
+   - Trick police cruisers by making sharp drifts around building corners so they slam into walls and explode!
+
+2. **Wanted Level System (⭐ to ⭐⭐⭐⭐⭐)**:
+   - **1 Star (0–15s):** 2 standard patrol cruisers.
+   - **2 Stars (15–30s):** 4 cruisers with faster response times.
+   - **3 Stars (30–45s):** 6 cruisers + heavy SWAT armored trucks!
+   - **4 Stars (45–60s):** 8 units with intense pursuit.
+   - **5 Stars (60s+):** Maximum Chaos! Swarms of cruisers and SWAT vehicles.
+
+3. **Power-Ups & Tactical Weapons**:
+   - 💰 **Cash Bags ($500):** Boost your score.
+   - 🔧 **Repair Wrenches (+35% HP):** Fix collision damage.
+   - ⚡ **EMP Shockwave Blast:** Press <kbd>Space</kbd> to discharge an electric shockwave that blasts surrounding police cruisers away and deals heavy damage!
+   - 🚀 **Nitro Jet Boost:** Hold <kbd>Shift</kbd> to blast forward with cyan jet flames and leave the police in your dust.
+
+4. **Procedural Neon City Arena (`city.js`)**:
+   - 4 major building blocks creating avenues, 4-way intersections, and alleyways.
+   - Central roundabout plaza for 360-degree drifting escapes.
+   - Screen shake and explosion debris on heavy impacts.
+
+5. **Procedural Web Audio API Synth (`main.js`)**:
+   - Authentic oscillating police siren wails.
+   - Crash thuds, explosion booms, EMP zaps, and cash pickup chimes generated purely via mathematical wave oscillators (zero audio files needed).
+
+---
+
+## 🕹️ Controls & Hotkeys
 
 | Key / Control | Action |
 |---|---|
-| <kbd>Space</kbd> | Pause / Resume simulation |
-| <kbd>N</kbd> | Force evolution to next generation |
-| <kbd>S</kbd> | Save champion brain to LocalStorage |
-| <kbd>1</kbd> / <kbd>2</kbd> / <kbd>4</kbd> / <kbd>0</kbd> | Set simulation speed to 1x, 2x, 4x, or 10x |
-| **Mutation Slider** | Adjust mutation probability (5% - 50%) |
-| **Sound Button** | Toggle Web Audio procedural sound effects |
-| **Reset Button** | Clear saved brain and start over at Generation 1 |
+| <kbd>W</kbd> or <kbd>↑</kbd> | Accelerate (Gas) |
+| <kbd>S</kbd> or <kbd>↓</kbd> | Brake / Reverse |
+| <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd> | Steer & Drift |
+| Hold <kbd>Shift</kbd> | 🚀 Nitro Jet Boost |
+| <kbd>Space</kbd> | ⚡ Trigger EMP Shockwave Blast |
+| <kbd>R</kbd> or **כפתור שחק שוב** | 🔄 Restart Game immediately |
 
 ---
 
 ## 🚀 How to Run Locally
 
-Open `index.html` in any modern web browser (Chrome, Firefox, Safari, Edge).
-No installation, no npm, and no server required!
+1. Clone or download the repository:
+   ```bash
+   git clone https://github.com/KarinMalka1/neuro-car-racing.git
+   ```
+2. Double-click `index.html` to open directly in any browser (Chrome, Edge, Firefox, Safari).  
+   *No servers, no node_modules, and no installation required!*
+
+---
+
+## 👥 Authors
+* Developed for **Agentic Programming (AICODE 67723)**
+* School of Computer Science & Engineering, **Hebrew University of Jerusalem**
