@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuroevolution 2D Car Racing AI — Championship Edition</title>
+    <title>Grand Prix Racing — Human vs AI & 2-Player Battle</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <div class="logo-area">
             <span class="logo-icon">🏎️</span>
-            <h1>Neuroevolution GP</h1>
-            <span class="subtitle">// HUMAN VS NEURAL AI CHAMPIONSHIP</span>
+            <h1>Grand Prix Racing</h1>
+            <span class="subtitle">// FULL-LAP CHAMPIONSHIP</span>
         </div>
         <div class="quick-actions">
-            <button id="loadProBtn" class="btn btn-primary" title="Load trained AI champion">👑 Load Pro AI</button>
-            <button id="resetBtn" class="btn btn-danger" title="Train from scratch at Generation 1">🧪 Train From Scratch</button>
+            <!-- Mode Selector -->
+            <button id="modeVsAiBtn" class="btn active" title="Race against the Neural Network AI">🤖 1 Player vs AI</button>
+            <button id="mode2PBtn" class="btn" title="Two players on the same keyboard!">👥 2 Players (Local)</button>
+            <!-- Restart Button -->
+            <button id="restartBtn" class="btn btn-danger" style="font-weight: 700;">🔄 כפתור: שחק שוב (Restart)</button>
             <button id="audioBtn" class="btn active">🔊 Sound: ON</button>
-            <button id="saveBtn" class="btn">💾 Save Brain</button>
         </div>
     </header>
 
@@ -25,65 +27,56 @@
         <!-- Main Circuit Viewport -->
         <section class="canvas-wrapper">
             <canvas id="carCanvas" width="1060" height="700"></canvas>
-            <div style="margin-top: 10px; font-size: 0.88rem; color: #ffaa00; font-weight: 700; text-align: center; letter-spacing: 0.5px;">
-                🔥 <span style="color: #ff5500;">YOU ARE THE ORANGE CAR:</span> Drive with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> &nbsp;|&nbsp; Hold <kbd>Shift</kbd> for <span style="color: #00f3ff;">NITRO BOOST 🚀</span>
+            
+            <!-- Dynamic Controls Notice -->
+            <div id="controlsNotice" style="margin-top: 10px; font-size: 0.9rem; color: #ffaa00; font-weight: 700; text-align: center;">
+                🔥 <span style="color: #ff5500;">YOU ARE THE ORANGE CAR:</span> Drive with <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; <span style="color: #00f3ff;">Race the AI Swarm to complete 1 full circle!</span>
+            </div>
+
+            <!-- Victory Celebration Popup Modal (Opens when someone wins!) -->
+            <div id="victoryModal" class="victory-modal hidden">
+                <div class="victory-card">
+                    <div class="trophy-icon">🏆</div>
+                    <h2 id="winnerTitle">PLAYER 1 WINS!</h2>
+                    <p id="winnerSubtitle" style="color: #8492a6; margin-bottom: 8px;">Checkered flag reached!</p>
+                    <p id="winnerTime" class="winner-time">Winning Time: 15.2s</p>
+                    <div style="margin-top: 20px;">
+                        <button id="playAgainBtn" class="btn btn-primary btn-big">
+                            🔄 כפתור: שחק שוב / PLAY AGAIN
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
         <!-- Sidebar Dashboard -->
         <aside class="sidebar">
-            <!-- Player Race HUD -->
-            <div class="panel-card" style="border-color: rgba(255, 85, 0, 0.4);">
+            <!-- Race Telemetry -->
+            <div class="panel-card" style="border-color: rgba(255, 85, 0, 0.45);">
                 <div class="panel-title" style="color: #ff7733;">
-                    <span>Your Race Dashboard</span>
-                    <span id="rankVal" style="font-size: 0.85rem; color: #ffe600; font-weight: 800;">🥇 1st</span>
+                    <span>Live Race Telemetry</span>
+                    <span id="rankVal" style="font-size: 0.85rem; color: #ffe600; font-weight: 800;">🥇 1st Place</span>
                 </div>
-                <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
                     <div class="stat-box">
                         <div class="stat-label">Speed</div>
                         <div class="stat-val" style="color: #00f3ff;"><span id="speedKmhVal">0</span><span style="font-size: 0.65rem; color: #8492a6;"> KM/H</span></div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Lap Time</div>
+                        <div class="stat-label">Race Time</div>
                         <div id="currentLapVal" class="stat-val" style="color: #ffe600;">0.0s</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Best Lap</div>
-                        <div id="bestLapVal" class="stat-val" style="color: #39ff14;">--</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">Laps</div>
-                        <div id="playerLapVal" class="stat-val" style="color: #ff5500;">0</div>
+                        <div class="stat-label">Track Progress</div>
+                        <div id="checkpointsVal" class="stat-val" style="color: #39ff14; font-size: 0.95rem;">0 / 95</div>
                     </div>
                 </div>
             </div>
 
-            <!-- AI Telemetry Stats -->
+            <!-- Champion AI Brain Visualizer -->
             <div class="panel-card">
                 <div class="panel-title">
-                    <span>AI Swarm Telemetry</span>
-                    <span style="font-size: 0.7rem; color: #39ff14;">● 60 CARS</span>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-label">Gen</div>
-                        <div id="genVal" class="stat-val">1</div>
-                    </div>
-                    <div class="stat-box active-cars">
-                        <div class="stat-label">AI Alive</div>
-                        <div id="aliveVal" class="stat-val">60</div>
-                    </div>
-                    <div class="stat-box highlight">
-                        <div class="stat-label">Fitness</div>
-                        <div id="fitnessVal" class="stat-val">15737</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Neural Network Brain Visualizer -->
-            <div class="panel-card">
-                <div class="panel-title">
-                    <span>Champion AI Brain</span>
+                    <span>Champion AI Neural Network</span>
                     <span style="font-size: 0.7rem; color: #00f3ff;">[5-6-4 MLP]</span>
                 </div>
                 <div class="network-container">
@@ -96,36 +89,16 @@
                 </div>
             </div>
 
-            <!-- Evolution & Speed Controls -->
-            <div class="panel-card">
-                <div class="panel-title">
-                    <span>Simulation Controls</span>
+            <!-- Rules & Guide for Mentor -->
+            <div class="panel-card" style="background: rgba(14, 20, 36, 0.95);">
+                <div class="panel-title" style="color: #39ff14;">
+                    <span>🏁 Grand Prix Rules</span>
                 </div>
-
-                <!-- Simulation Speed -->
-                <div class="speed-row">
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">Sim Speed</span>
-                    <div class="speed-buttons">
-                        <button class="btn speed-btn active" data-speed="1">1x</button>
-                        <button class="btn speed-btn" data-speed="2">2x</button>
-                        <button class="btn speed-btn" data-speed="4">4x</button>
-                        <button class="btn speed-btn" data-speed="10">10x</button>
-                    </div>
-                </div>
-
-                <!-- Mutation Rate Slider -->
-                <div class="slider-group">
-                    <div class="slider-header">
-                        <span>AI Mutation Rate</span>
-                        <span id="mutationVal" class="slider-val">20%</span>
-                    </div>
-                    <input type="range" id="mutationSlider" min="0.05" max="0.5" step="0.05" value="0.20">
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="btn-group">
-                    <button id="pauseBtn" class="btn">⏸ Pause</button>
-                    <button id="nextGenBtn" class="btn btn-primary">⏭ Next Gen</button>
+                <div style="font-size: 0.8rem; line-height: 1.6; color: #cbd5e1;">
+                    <p>• <b>Continuous Racing:</b> Cars never die on wall bumps! They bounce off and keep going.</p>
+                    <p>• <b>Win Condition:</b> First car to complete <b>1 full circle</b> around the track takes the trophy!</p>
+                    <p>• <b>2-Player Mode:</b> Partner 1 uses <kbd>Arrows</kbd>, Partner 2 uses <kbd>WASD</kbd>.</p>
+                    <p>• <b>Restart Anytime:</b> Click the <b style="color: #ff5500;">"שחק שוב"</b> button or press <kbd>R</kbd>.</p>
                 </div>
             </div>
         </aside>

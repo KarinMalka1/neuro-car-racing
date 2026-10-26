@@ -1,5 +1,6 @@
 /**
- * 2D Car Kinematics, Collision Polygon, Drift Mechanics & Fitness
+ * 2D Car Kinematics, Collision Polygon, Drift Mechanics & Race Progress
+ * Cars NEVER die on wall bumps — they bounce off and keep racing until a winner finishes the lap!
  */
 
 class Car {
@@ -8,9 +9,13 @@ class Car {
      * @param {number} y
      * @param {number} angle
      * @param {NeuralNetwork} brain
-     * @param {string} controlType - 'AI' or 'HUMAN'
+     * @param {string} controlType - 'AI', 'PLAYER1', or 'PLAYER2'
      */
     constructor(x, y, angle = 0, brain = null, controlType = 'AI') {
+        this.startX = x;
+        this.startY = y;
+        this.startAngle = angle;
+
         this.x = x;
         this.y = y;
         this.angle = angle;
@@ -20,16 +25,17 @@ class Car {
         this.height = 32;
 
         this.speed = 0;
-        this.acceleration = controlType === 'HUMAN' ? 0.26 : 0.22;
-        this.baseMaxSpeed = controlType === 'HUMAN' ? 5.4 : 4.8;
+        const isHuman = (controlType === 'PLAYER1' || controlType === 'PLAYER2' || controlType === 'HUMAN');
+        this.acceleration = isHuman ? 0.28 : 0.24;
+        this.baseMaxSpeed = isHuman ? 5.6 : 5.0;
         this.maxSpeed = this.baseMaxSpeed;
-        this.friction = 0.05;
-        this.turnRate = controlType === 'HUMAN' ? 0.054 : 0.048;
+        this.friction = 0.055;
+        this.turnRate = isHuman ? 0.056 : 0.050;
 
         this.isBoosting = false;
         this.isSkidding = false;
-        this.damaged = false;
         this.hitWallFlash = 0;
+        this.isWinner = false;
 
         // Sensors and Brain
         this.sensor = new Sensor(this);
@@ -43,114 +49,88 @@ class Car {
             boost: 0
         };
 
-        // Genetic fitness & timing
-        this.fitness = 0;
+        // Lap & Race Progress
         this.checkpointsPassed = 0;
         this.nextCheckpointIdx = 1;
         this.laps = 0;
-        this.framesSinceCheckpoint = 0;
-        this.stuckFrames = 0;
+        this.lapFrames = 0;
+        this.finalTimeSeconds = null;
 
-        // Lap Timing (in seconds)
-        this.lapStartFrame = 0;
-        this.currentLapFrames = 0;
-        this.bestLapSeconds = null;
+        // Bounding polygon
+        this.polygon = this.#createPolygon();
+    }
 
-        // Immediately compute bounding polygon
+    reset() {
+        this.x = this.startX;
+        this.y = this.startY;
+        this.angle = this.startAngle;
+        this.speed = 0;
+        this.checkpointsPassed = 0;
+        this.nextCheckpointIdx = 1;
+        this.laps = 0;
+        this.lapFrames = 0;
+        this.finalTimeSeconds = null;
+        this.isWinner = false;
+        this.hitWallFlash = 0;
         this.polygon = this.#createPolygon();
     }
 
     /**
-     * Update car physics, sensor inputs, neural decisions, collision & fitness.
+     * Update car physics, sensor inputs, wall bouncing, and lap checking.
      */
     update(trackBorders, checkpoints) {
-        if (this.controlType === 'HUMAN') {
-            this.#updateHuman(trackBorders, checkpoints);
+        if (this.isWinner) {
+            // Decelerate smoothly after winning
+            this.speed *= 0.95;
+            this.#move();
+            this.polygon = this.#createPolygon();
             return;
         }
 
-        if (!this.damaged) {
-            // 1. Update sensors & query Neural Network
-            this.sensor.update(trackBorders);
-
-            // Normalize inputs: 1 = wall touching bumper, 0 = no wall in range
-            const inputs = this.sensor.readings.map(s => (s === null ? 0 : 1 - s.offset));
-            const outputs = NeuralNetwork.feedForward(inputs, this.brain);
-
-            this.controls.forward = outputs[0];
-            this.controls.reverse = outputs[1];
-            this.controls.left = outputs[2];
-            this.controls.right = outputs[3];
-
-            // 2. Physics & Kinematics
-            this.#move();
-
-            // 3. Compute collision polygon
-            this.polygon = this.#createPolygon();
-
-            // 4. Collision test with borders
-            if (this.#assessDamage(trackBorders)) {
-                this.damaged = true;
-            }
-
-            // 5. Checkpoint progression & fitness
-            this.#updateFitness(checkpoints);
-        }
-    }
-
-    #updateHuman(trackBorders, checkpoints) {
-        this.currentLapFrames++;
+        this.lapFrames++;
         if (this.hitWallFlash > 0) {
             this.hitWallFlash--;
         }
 
-        // Nitro Boost toggle
+        // 1. Determine controls (AI or Human)
+        if (this.controlType === 'AI') {
+            this.sensor.update(trackBorders);
+            const inputs = this.sensor.readings.map(s => (s === null ? 0 : 1 - s.offset));
+            const outputs = NeuralNetwork.feedForward(inputs, this.brain);
+            this.controls.forward = outputs[0];
+            this.controls.reverse = outputs[1];
+            this.controls.left = outputs[2];
+            this.controls.right = outputs[3];
+        }
+
+        // 2. Nitro Boost logic
         this.isBoosting = Boolean(this.controls.boost);
         this.maxSpeed = this.isBoosting ? this.baseMaxSpeed * 1.35 : this.baseMaxSpeed;
         if (this.isBoosting && this.controls.forward) {
-            this.speed += this.acceleration * 1.5;
+            this.speed += this.acceleration * 1.4;
         }
 
+        // 3. Movement
         this.#move();
+
+        // 4. Polygon collision testing
         this.polygon = this.#createPolygon();
 
-        // Check if player bumped into wall
+        // 5. Wall Collision — Bounce off and keep driving! (Never dies!)
         if (this.#assessDamage(trackBorders)) {
-            // Bounce back and slow down smoothly without killing the player
-            this.speed = -1.5;
+            this.speed = -1.4; // Bounce backward
             this.hitWallFlash = 12;
-            this.x += Math.sin(this.angle) * 3.5;
-            this.y += Math.cos(this.angle) * 3.5;
+            // Push car away from wall toward track center
+            this.x += Math.sin(this.angle) * 4;
+            this.y += Math.cos(this.angle) * 4;
             this.polygon = this.#createPolygon();
         }
 
-        // Lap progression for human player
-        if (checkpoints && checkpoints.length > 0) {
-            const nextGate = checkpoints[this.nextCheckpointIdx];
-            const gateCenter = {
-                x: (nextGate[0].x + nextGate[1].x) / 2,
-                y: (nextGate[0].y + nextGate[1].y) / 2
-            };
-            const dist = Math.hypot(this.x - gateCenter.x, this.y - gateCenter.y);
-            if (dist < 60) {
-                this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
-                if (this.nextCheckpointIdx === 0) {
-                    this.laps++;
-                    const lapSec = (this.currentLapFrames / 60).toFixed(2);
-                    if (!this.bestLapSeconds || parseFloat(lapSec) < parseFloat(this.bestLapSeconds)) {
-                        this.bestLapSeconds = lapSec;
-                    }
-                    this.currentLapFrames = 0;
-                    if (window.triggerCelebration) {
-                        window.triggerCelebration(lapSec);
-                    }
-                }
-            }
-        }
+        // 6. Checkpoint & Lap Progress
+        this.#updateCheckpoints(checkpoints);
     }
 
     #move() {
-        // Forward / Reverse acceleration
         if (this.controls.forward) {
             this.speed += this.acceleration;
         }
@@ -159,12 +139,8 @@ class Car {
         }
 
         // Clamp speed
-        if (this.speed > this.maxSpeed) {
-            this.speed = this.maxSpeed;
-        }
-        if (this.speed < -this.maxSpeed / 2) {
-            this.speed = -this.maxSpeed / 2;
-        }
+        if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
+        if (this.speed < -this.maxSpeed / 2) this.speed = -this.maxSpeed / 2;
 
         // Friction
         if (this.speed > 0) {
@@ -176,21 +152,20 @@ class Car {
             if (this.speed > 0) this.speed = 0;
         }
 
-        // Steering & Drift detection
+        // Steering & Skid
         this.isSkidding = false;
         if (Math.abs(this.speed) > 0.1) {
             const flip = this.speed > 0 ? 1 : -1;
             if (this.controls.left) {
                 this.angle += this.turnRate * flip;
-                if (Math.abs(this.speed) > 3.2) this.isSkidding = true;
+                if (Math.abs(this.speed) > 3.4) this.isSkidding = true;
             }
             if (this.controls.right) {
                 this.angle -= this.turnRate * flip;
-                if (Math.abs(this.speed) > 3.2) this.isSkidding = true;
+                if (Math.abs(this.speed) > 3.4) this.isSkidding = true;
             }
         }
 
-        // Apply movement vector
         this.x -= Math.sin(this.angle) * this.speed;
         this.y -= Math.cos(this.angle) * this.speed;
     }
@@ -230,25 +205,8 @@ class Car {
         return false;
     }
 
-    #updateFitness(checkpoints) {
-        this.framesSinceCheckpoint++;
-
-        // Auto-cull cars that are dead stopped
-        if (Math.abs(this.speed) < 0.2) {
-            this.stuckFrames++;
-            if (this.stuckFrames > 200) {
-                this.damaged = true;
-                return;
-            }
-        } else {
-            this.stuckFrames = 0;
-        }
-
-        // Generous checkpoint timeout: 10 seconds to reach next gate
-        if (this.framesSinceCheckpoint > 600) {
-            this.damaged = true;
-            return;
-        }
+    #updateCheckpoints(checkpoints) {
+        if (!checkpoints || checkpoints.length === 0) return;
 
         const nextGate = checkpoints[this.nextCheckpointIdx];
         const gateCenter = {
@@ -264,30 +222,26 @@ class Car {
             nextGate[1]
         );
 
-        if (didCross || dist < 55) {
+        if (didCross || dist < 65) {
             this.checkpointsPassed++;
-            this.framesSinceCheckpoint = 0;
             this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % checkpoints.length;
 
-            if (this.nextCheckpointIdx === 0) {
+            // When completing a full circle (crossing back through gate 0 after all checkpoints)
+            if (this.nextCheckpointIdx === 0 && this.checkpointsPassed >= checkpoints.length * 0.85) {
                 this.laps++;
+                this.isWinner = true;
+                this.finalTimeSeconds = (this.lapFrames / 60).toFixed(2);
+                if (window.onRaceFinished) {
+                    window.onRaceFinished(this);
+                }
             }
-        }
-
-        // Fitness calculation
-        const maxGateDist = 140;
-        const progressToNext = Math.max(0, 1 - dist / maxGateDist);
-        this.fitness = (this.checkpointsPassed * 100) + (progressToNext * 60) + (this.laps * 5000);
-
-        if (this.damaged) {
-            this.fitness = Math.max(0, this.fitness - 20);
         }
     }
 
     /**
-     * Draw the car polygon with futuristic styling.
+     * Draw the car polygon with custom styling for each player.
      */
-    draw(ctx, isBest = false) {
+    draw(ctx, isLeadingAI = false) {
         if (!this.polygon || this.polygon.length === 0) return;
 
         ctx.save();
@@ -298,96 +252,75 @@ class Car {
         }
         ctx.closePath();
 
-        if (this.controlType === 'HUMAN') {
-            // Player Car: Fiery Orange
-            ctx.fillStyle = this.hitWallFlash > 0 ? '#ff0033' : '#ff5500';
-            ctx.shadowColor = this.isBoosting ? '#00f3ff' : '#ff5500';
-            ctx.shadowBlur = this.isBoosting ? 22 : 14;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.5;
-            ctx.fill();
-            ctx.stroke();
+        let carColor = '#00f3ff';
+        let glowColor = '#00f3ff';
+        let labelText = '';
 
-            // Cockpit
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(-this.angle);
-            ctx.fillStyle = '#111726';
-            ctx.fillRect(-this.width * 0.3, -this.height * 0.3, this.width * 0.6, this.height * 0.35);
+        if (this.controlType === 'PLAYER1' || this.controlType === 'HUMAN') {
+            // Player 1: Fiery Neon Orange
+            carColor = this.hitWallFlash > 0 ? '#ff0033' : '#ff5500';
+            glowColor = this.isBoosting ? '#00f3ff' : '#ff5500';
+            labelText = 'YOU (P1)';
+        } else if (this.controlType === 'PLAYER2') {
+            // Player 2: Neon Purple / Cyan
+            carColor = this.hitWallFlash > 0 ? '#ff0033' : '#a855f7';
+            glowColor = this.isBoosting ? '#ffe600' : '#a855f7';
+            labelText = 'PLAYER 2';
+        } else if (this.controlType === 'AI') {
+            // AI Rival / Champion
+            carColor = isLeadingAI ? '#39ff14' : 'rgba(0, 243, 255, 0.5)';
+            glowColor = isLeadingAI ? '#39ff14' : 'transparent';
+            labelText = isLeadingAI ? 'AI RIVAL' : '';
+        }
 
-            // Bright amber headlights
-            ctx.fillStyle = '#ffcc00';
-            ctx.shadowColor = '#ffcc00';
-            ctx.shadowBlur = 10;
-            ctx.fillRect(-this.width * 0.38, -this.height * 0.48, 4, 3);
-            ctx.fillRect(this.width * 0.38 - 4, -this.height * 0.48, 4, 3);
+        ctx.fillStyle = carColor;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = (this.isBoosting || isLeadingAI) ? 20 : 12;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.2;
+        ctx.fill();
+        ctx.stroke();
 
-            // Floating "YOU" tag
+        // Cockpit & Headlights
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(-this.angle);
+
+        // Windshield
+        ctx.fillStyle = '#0a101d';
+        ctx.fillRect(-this.width * 0.3, -this.height * 0.3, this.width * 0.6, this.height * 0.35);
+
+        // Headlights
+        ctx.fillStyle = (this.controlType === 'AI' ? '#00f3ff' : '#ffe600');
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 8;
+        ctx.fillRect(-this.width * 0.38, -this.height * 0.48, 4, 3);
+        ctx.fillRect(this.width * 0.38 - 4, -this.height * 0.48, 4, 3);
+
+        // Floating Player Label
+        if (labelText) {
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.font = 'bold 10px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.shadowBlur = 4;
             ctx.shadowColor = '#000000';
-            ctx.fillText('YOU (P1)', 0, this.height * 0.75);
-
-            // Nitro Boost Flame Tail
-            if (this.isBoosting) {
-                ctx.fillStyle = '#00f3ff';
-                ctx.shadowColor = '#00f3ff';
-                ctx.shadowBlur = 12;
-                ctx.beginPath();
-                ctx.moveTo(-4, this.height * 0.5);
-                ctx.lineTo(0, this.height * 0.5 + 16 + Math.random() * 8);
-                ctx.lineTo(4, this.height * 0.5);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            ctx.restore();
-            ctx.restore();
-            return;
+            ctx.fillText(labelText, 0, this.height * 0.75);
         }
 
-        if (this.damaged) {
-            // Crashed car: dim
-            ctx.fillStyle = 'rgba(120, 30, 40, 0.08)';
-            ctx.strokeStyle = 'rgba(200, 40, 40, 0.12)';
-            ctx.lineWidth = 1;
-            ctx.fill();
-            ctx.stroke();
-        } else if (isBest) {
-            // Champion car: neon green & yellow with electric glow
-            ctx.fillStyle = '#39ff14';
-            ctx.shadowColor = '#39ff14';
-            ctx.shadowBlur = 14;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.5;
-            ctx.fill();
-            ctx.stroke();
-
-            // Windshield
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(-this.angle);
-            ctx.fillStyle = '#0a101d';
-            ctx.fillRect(-this.width * 0.3, -this.height * 0.3, this.width * 0.6, this.height * 0.35);
-
-            // Headlights
+        // Nitro Boost Jet Flames
+        if (this.isBoosting) {
             ctx.fillStyle = '#00f3ff';
             ctx.shadowColor = '#00f3ff';
-            ctx.shadowBlur = 8;
-            ctx.fillRect(-this.width * 0.38, -this.height * 0.48, 4, 3);
-            ctx.fillRect(this.width * 0.38 - 4, -this.height * 0.48, 4, 3);
-            ctx.restore();
-        } else {
-            // Normal active population: semi-transparent neon cyan
-            ctx.fillStyle = 'rgba(0, 243, 255, 0.22)';
-            ctx.strokeStyle = 'rgba(0, 243, 255, 0.45)';
-            ctx.lineWidth = 1.2;
+            ctx.shadowBlur = 14;
+            ctx.beginPath();
+            ctx.moveTo(-4, this.height * 0.5);
+            ctx.lineTo(0, this.height * 0.5 + 18 + Math.random() * 8);
+            ctx.lineTo(4, this.height * 0.5);
+            ctx.closePath();
             ctx.fill();
-            ctx.stroke();
         }
 
+        ctx.restore();
         ctx.restore();
     }
 
@@ -400,9 +333,7 @@ class Car {
                 segment[0],
                 segment[1]
             );
-            if (touch) {
-                return true;
-            }
+            if (touch) return true;
         }
         return false;
     }

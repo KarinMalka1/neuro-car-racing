@@ -1,14 +1,7 @@
 /**
- * Main Simulation Orchestrator & Genetic Evolution Loop
- * Features:
- * - Pre-trained Champion AI (Drives like a pro out of the box!)
- * - Live Human Player Racing (WASD/Arrows + Shift for Nitro Boost)
- * - Real-Time Race Leaderboard, Speedometer & Lap Timers
- * - Drift Tire Skid Marks, Particle Exhaust & Confetti Celebrations
+ * Grand Prix Championship & 2-Player Racing Engine
+ * Never ends early! The race continues until someone completes a full circle to WIN!
  */
-
-const POPULATION_SIZE = 60; // 60 cars for buttery smooth 60fps
-const STORAGE_KEY = 'neuro_car_best_brain';
 
 // Canvas Setup
 const carCanvas = document.getElementById('carCanvas');
@@ -16,36 +9,31 @@ const networkCanvas = document.getElementById('networkCanvas');
 const carCtx = carCanvas.getContext('2d');
 const networkCtx = networkCanvas.getContext('2d');
 
-// Simulation State
+// Game State
 let track = new Track();
-let cars = [];
-let bestCar = null;
-let championBrain = null;
-let generation = 1;
-let maxFitnessRecord = 0;
-let isPaused = false;
-let simSpeed = 1;
-let mutationRate = 0.20;
-let soundEnabled = true; // Default ON for demo impact!
-let evolveDelay = 0;
+let gameMode = 'VS_AI'; // 'VS_AI' or '2_PLAYER'
+let gameState = 'COUNTDOWN'; // 'COUNTDOWN', 'RACING', 'FINISHED'
+let countdownTimer = 180; // 3 seconds (60 frames/sec)
+let winnerCar = null;
 
-// Visual Effects State
+// Cars
+let player1 = null; // Orange Car (Arrow Keys)
+let player2 = null; // Purple Car (WASD in 2-Player mode)
+let aiCars = [];    // AI Swarm (in VS_AI mode)
+let aiChampion = null;
+let championBrain = null;
+
+// Visual Effects
 let skidMarks = [];
 let particles = [];
-let bannerNotification = { text: '', frames: 0, color: '#39ff14' };
+let confetti = [];
+let soundEnabled = true;
 
-// Human Player State
-let playerCar = null;
-let playerEnabled = true;
-const humanKeys = {
-    forward: false,
-    reverse: false,
-    left: false,
-    right: false,
-    boost: false
-};
+// Key Tracking
+const keysP1 = { forward: false, reverse: false, left: false, right: false, boost: false };
+const keysP2 = { forward: false, reverse: false, left: false, right: false, boost: false };
 
-// Web Audio API Procedural Synthesizer
+// Web Audio API
 let audioCtx = null;
 function initAudio() {
     if (!audioCtx) {
@@ -62,262 +50,217 @@ function playSound(type) {
         osc.connect(gain);
         gain.connect(audioCtx.destination);
 
-        if (type === 'checkpoint') {
+        if (type === 'beep') {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, now); // D5
-            osc.frequency.exponentialRampToValueAtTime(880, now + 0.1); // A5
-            gain.gain.setValueAtTime(0.06, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else if (type === 'lap') {
-            // Victory Fanfare Chime
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(523.25, now); // C5
-            osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-            osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
-            osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-            osc.start(now);
-            osc.stop(now + 0.45);
-        } else if (type === 'evolve') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(180, now);
-            osc.frequency.exponentialRampToValueAtTime(540, now + 0.25);
+            osc.frequency.setValueAtTime(440, now); // A4
             gain.gain.setValueAtTime(0.08, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
             osc.start(now);
-            osc.stop(now + 0.25);
+            osc.stop(now + 0.15);
+        } else if (type === 'go') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now); // A5
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc.start(now);
+            osc.stop(now + 0.35);
+        } else if (type === 'victory') {
+            // Fanfare chords
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.connect(g);
+                g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                g.gain.setValueAtTime(0.12, now + idx * 0.1);
+                g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+                o.start(now + idx * 0.1);
+                o.stop(now + idx * 0.1 + 0.4);
+            });
         }
     } catch (e) {
         // Fallback
     }
 }
 
-// Celebration Handler
-window.triggerCelebration = function(lapTime) {
-    bannerNotification = {
-        text: `🏁 NEW LAP RECORD: ${lapTime}s!`,
-        frames: 180, // 3 seconds
-        color: '#ffcc00'
-    };
-    playSound('lap');
+// Initialize Cars
+function setupRace() {
+    // Offset spawn positions along start line
+    const sx = track.start.x;
+    const sy = track.start.y;
+    const sa = track.start.angle;
 
-    // Spawn 80 confetti particles at finish line
-    for (let i = 0; i < 80; i++) {
-        particles.push({
-            x: track.start.x + (Math.random() - 0.5) * 60,
-            y: track.start.y + (Math.random() - 0.5) * 60,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 0.5) * 8 - 3,
-            color: ['#00f3ff', '#39ff14', '#ff007f', '#ffe600', '#ff5500'][Math.floor(Math.random() * 5)],
-            size: Math.random() * 5 + 3,
-            life: 90
+    // Player 1 (Orange)
+    player1 = new Car(sx, sy, sa, null, 'PLAYER1');
+
+    if (gameMode === '2_PLAYER') {
+        // Player 2 (Purple)
+        player2 = new Car(sx + 15, sy - 15, sa, null, 'PLAYER2');
+        aiCars = [];
+        aiChampion = null;
+    } else {
+        // Solo vs AI
+        player2 = null;
+        if (!championBrain) {
+            championBrain = NeuralNetwork.deserialize(NeuralNetwork.DEFAULT_CHAMPION);
+        }
+        aiCars = [];
+        // Spawn 15 AI racers
+        for (let i = 0; i < 15; i++) {
+            let brain = NeuralNetwork.clone(championBrain);
+            if (i > 0) NeuralNetwork.mutate(brain, 0.15, 0.25);
+            const car = new Car(sx - (i * 4), sy + (i * 6), sa, brain, 'AI');
+            aiCars.push(car);
+        }
+        aiChampion = aiCars[0];
+    }
+
+    gameState = 'COUNTDOWN';
+    countdownTimer = 180;
+    winnerCar = null;
+    skidMarks = [];
+    particles = [];
+    confetti = [];
+
+    // Hide victory popup if open
+    document.getElementById('victoryModal').classList.add('hidden');
+    updateHUD();
+}
+
+// When a Car Crosses the Finish Line
+window.onRaceFinished = function(car) {
+    if (gameState === 'FINISHED') return;
+    gameState = 'FINISHED';
+    winnerCar = car;
+    playSound('victory');
+
+    // Spawn massive victory confetti explosion
+    for (let i = 0; i < 150; i++) {
+        confetti.push({
+            x: carCanvas.width / 2 + (Math.random() - 0.5) * 400,
+            y: 100 + Math.random() * 200,
+            vx: (Math.random() - 0.5) * 10,
+            vy: Math.random() * 5 + 2,
+            color: ['#00f3ff', '#39ff14', '#ff007f', '#ffe600', '#ff5500', '#a855f7'][Math.floor(Math.random() * 6)],
+            size: Math.random() * 8 + 4,
+            rotation: Math.random() * 360,
+            rotSpeed: (Math.random() - 0.5) * 10
         });
     }
+
+    // Determine winner title
+    let title = '🏆 PLAYER 1 WINS!';
+    let subtitle = 'Orange Car took the checkered flag!';
+    if (car.controlType === 'PLAYER2') {
+        title = '🏆 PLAYER 2 WINS!';
+        subtitle = 'Purple Car took the checkered flag!';
+    } else if (car.controlType === 'AI') {
+        title = '🤖 AI CHAMPION WINS!';
+        subtitle = 'The Neural Network crossed the finish line first!';
+    }
+
+    // Show Victory Modal
+    document.getElementById('winnerTitle').textContent = title;
+    document.getElementById('winnerTime').textContent = `Winning Time: ${car.finalTimeSeconds}s`;
+    document.getElementById('winnerSubtitle').textContent = subtitle;
+    document.getElementById('victoryModal').classList.remove('hidden');
 };
 
-// Population Generation
-function generateCars(N, baseBrain = null) {
-    const newCars = [];
-    for (let i = 0; i < N; i++) {
-        let brain;
-        if (baseBrain) {
-            brain = NeuralNetwork.clone(baseBrain);
-            if (i > 0) {
-                // Elite clone stays pure; others have subtle variations
-                const dynamicRate = (i > N * 0.75) ? mutationRate * 1.5 : mutationRate;
-                NeuralNetwork.mutate(brain, dynamicRate, 0.25);
-            }
-        } else {
-            brain = new NeuralNetwork([5, 6, 4]);
-        }
-        const car = new Car(track.start.x, track.start.y, track.start.angle, brain, 'AI');
-        car.sensor.update(track.borders);
-        newCars.push(car);
-    }
-    return newCars;
-}
-
-function init() {
-    initAudio();
-
-    // Load saved brain or default to Pre-Trained Champion Brain!
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        championBrain = NeuralNetwork.deserialize(saved);
-        console.log("Loaded custom brain from LocalStorage.");
-    } else {
-        // Pre-trained out of the box!
-        championBrain = NeuralNetwork.deserialize(NeuralNetwork.DEFAULT_CHAMPION);
-        console.log("Loaded Pro Champion Brain by default!");
-    }
-
-    cars = generateCars(POPULATION_SIZE, championBrain);
-    bestCar = cars[0];
-
-    // Spawn Player Car (Orange)
-    playerCar = new Car(track.start.x, track.start.y, track.start.angle, null, 'HUMAN');
-    playerCar.sensor.update(track.borders);
-
-    updateUI();
-    requestAnimationFrame(animate);
-}
-
-// Evolution Step
-function nextGeneration() {
-    let genBest = cars[0];
-    for (let i = 1; i < cars.length; i++) {
-        if (cars[i].fitness > genBest.fitness) {
-            genBest = cars[i];
-        }
-    }
-
-    if (genBest.fitness > maxFitnessRecord) {
-        maxFitnessRecord = genBest.fitness;
-        championBrain = NeuralNetwork.clone(genBest.brain);
-    } else if (!championBrain) {
-        championBrain = NeuralNetwork.clone(genBest.brain);
-    }
-
-    generation++;
-    playSound('evolve');
-
-    cars = generateCars(POPULATION_SIZE, championBrain);
-    bestCar = cars[0];
-    evolveDelay = 0;
-    updateUI();
-}
-
-// Main Game Loop
+// Main Loop
 function animate() {
-    if (!isPaused) {
-        for (let step = 0; step < simSpeed; step++) {
-            updatePhysics();
-        }
-    }
-
+    updatePhysics();
     render();
     requestAnimationFrame(animate);
 }
 
 function updatePhysics() {
-    // 1. Update Human Player Car
-    if (playerEnabled && playerCar) {
-        playerCar.controls.forward = humanKeys.forward ? 1 : 0;
-        playerCar.controls.reverse = humanKeys.reverse ? 1 : 0;
-        playerCar.controls.left = humanKeys.left ? 1 : 0;
-        playerCar.controls.right = humanKeys.right ? 1 : 0;
-        playerCar.controls.boost = humanKeys.boost ? 1 : 0;
-        playerCar.update(track.borders, track.checkpoints);
-
-        // Add skid marks on sharp drift
-        if (playerCar.isSkidding) {
-            skidMarks.push({ x: playerCar.x, y: playerCar.y, alpha: 0.6 });
-            if (skidMarks.length > 250) skidMarks.shift();
+    // 1. Handle 3-2-1-GO Countdown
+    if (gameState === 'COUNTDOWN') {
+        countdownTimer--;
+        if (countdownTimer === 120 || countdownTimer === 60) playSound('beep');
+        if (countdownTimer === 0) {
+            gameState = 'RACING';
+            playSound('go');
         }
+        return;
+    }
 
-        // Add exhaust smoke
-        if (playerCar.speed > 1 && Math.random() < 0.4) {
-            particles.push({
-                x: playerCar.x + Math.sin(playerCar.angle) * 16,
-                y: playerCar.y + Math.cos(playerCar.angle) * 16,
-                vx: (Math.random() - 0.5) * 0.5,
-                vy: (Math.random() - 0.5) * 0.5,
-                color: playerCar.isBoosting ? '#00f3ff' : 'rgba(255, 255, 255, 0.4)',
-                size: Math.random() * 4 + 2,
-                life: 25
-            });
+    // 2. Update Player 1
+    if (player1) {
+        player1.controls.forward = keysP1.forward ? 1 : 0;
+        player1.controls.reverse = keysP1.reverse ? 1 : 0;
+        player1.controls.left = keysP1.left ? 1 : 0;
+        player1.controls.right = keysP1.right ? 1 : 0;
+        player1.controls.boost = keysP1.boost ? 1 : 0;
+        player1.update(track.borders, track.checkpoints);
+
+        if (player1.isSkidding) {
+            skidMarks.push({ x: player1.x, y: player1.y, alpha: 0.55 });
+            if (skidMarks.length > 200) skidMarks.shift();
         }
     }
 
-    // 2. Update all AI Cars
-    let aliveCount = 0;
-    let highestFitness = -1;
-    let currentLeader = bestCar;
+    // 3. Update Player 2 (if 2-Player mode)
+    if (gameMode === '2_PLAYER' && player2) {
+        player2.controls.forward = keysP2.forward ? 1 : 0;
+        player2.controls.reverse = keysP2.reverse ? 1 : 0;
+        player2.controls.left = keysP2.left ? 1 : 0;
+        player2.controls.right = keysP2.right ? 1 : 0;
+        player2.controls.boost = keysP2.boost ? 1 : 0;
+        player2.update(track.borders, track.checkpoints);
 
-    for (let i = 0; i < cars.length; i++) {
-        const car = cars[i];
-        car.update(track.borders, track.checkpoints);
-
-        if (!car.damaged) {
-            aliveCount++;
-            if (car.fitness > highestFitness) {
-                highestFitness = car.fitness;
-                currentLeader = car;
-            }
+        if (player2.isSkidding) {
+            skidMarks.push({ x: player2.x, y: player2.y, alpha: 0.55 });
+            if (skidMarks.length > 200) skidMarks.shift();
         }
     }
 
-    if (currentLeader) {
-        if (currentLeader.checkpointsPassed > bestCar.checkpointsPassed) {
-            playSound('checkpoint');
+    // 4. Update AI Swarm (if VS_AI mode)
+    if (gameMode === 'VS_AI') {
+        for (let i = 0; i < aiCars.length; i++) {
+            aiCars[i].update(track.borders, track.checkpoints);
         }
-        bestCar = currentLeader;
     }
 
-    // Generation Evolution Trigger
-    if (aliveCount === 0) {
-        evolveDelay++;
-        if (evolveDelay > 45) {
-            nextGeneration();
-            aliveCount = POPULATION_SIZE;
-        }
-    } else {
-        evolveDelay = 0;
+    // 5. Update Confetti
+    for (let i = 0; i < confetti.length; i++) {
+        const c = confetti[i];
+        c.x += c.vx;
+        c.y += c.vy;
+        c.rotation += c.rotSpeed;
+        if (c.y > carCanvas.height) c.y = -10;
     }
 
-    // Update Particles
-    for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life--;
-        if (p.life <= 0) particles.splice(i, 1);
-    }
-
-    // Update Banner Notification
-    if (bannerNotification.frames > 0) {
-        bannerNotification.frames--;
-    }
-
-    // Update Telemetry & Leaderboard UI
-    updateTelemetry(aliveCount, Math.max(highestFitness, maxFitnessRecord));
+    updateHUD();
 }
 
-function updateTelemetry(aliveCount, fit) {
-    document.getElementById('aliveVal').textContent = (aliveCount === 0 && evolveDelay > 0) ? 'Evolving...' : aliveCount;
-    document.getElementById('fitnessVal').textContent = Math.floor(fit);
+function updateHUD() {
+    if (player1) {
+        document.getElementById('speedKmhVal').textContent = Math.round(Math.abs(player1.speed) * 32);
+        const sec = (player1.lapFrames / 60).toFixed(1);
+        document.getElementById('currentLapVal').textContent = `${sec}s`;
+        document.getElementById('checkpointsVal').textContent = `${player1.checkpointsPassed} / ${track.checkpoints.length}`;
 
-    if (playerCar) {
-        // Speedometer in KM/H
-        const speedKmh = Math.round(Math.abs(playerCar.speed) * 32);
-        document.getElementById('speedKmhVal').textContent = speedKmh;
-
-        // Current Lap Timer
-        const curSec = (playerCar.currentLapFrames / 60).toFixed(1);
-        document.getElementById('currentLapVal').textContent = `${curSec}s`;
-
-        // Best Lap
-        document.getElementById('bestLapVal').textContent = playerCar.bestLapSeconds ? `${playerCar.bestLapSeconds}s` : '--';
-
-        // Calculate Race Rank: Compare player fitness with AI leader
-        const playerRank = (playerCar.fitness >= (bestCar ? bestCar.fitness : 0)) ? '🥇 1st' : '🥈 2nd';
-        document.getElementById('rankVal').textContent = playerRank;
-        document.getElementById('playerLapVal').textContent = playerCar.laps;
+        // Leaderboard check
+        let leaderText = '🥇 1st Place';
+        if (gameMode === 'VS_AI' && aiChampion && aiChampion.checkpointsPassed > player1.checkpointsPassed) {
+            leaderText = '🥈 2nd Place (AI Leading!)';
+        } else if (gameMode === '2_PLAYER' && player2 && player2.checkpointsPassed > player1.checkpointsPassed) {
+            leaderText = '🥈 2nd Place (P2 Leading!)';
+        }
+        document.getElementById('rankVal').textContent = leaderText;
     }
 }
 
 function render() {
-    // Clear Main Circuit
+    // Clear Canvases
     carCtx.fillStyle = '#0a0e17';
     carCtx.fillRect(0, 0, carCanvas.width, carCanvas.height);
 
     networkCtx.fillStyle = '#0e1320';
     networkCtx.fillRect(0, 0, networkCanvas.width, networkCanvas.height);
 
-    // 1. Draw Track Surface & Boundaries
+    // 1. Draw Track
     track.draw(carCtx);
 
     // 2. Draw Skid Marks
@@ -329,132 +272,100 @@ function render() {
         carCtx.fill();
     }
 
-    // 3. Draw AI Population
-    for (let i = 0; i < cars.length; i++) {
-        if (cars[i] !== bestCar) {
-            cars[i].draw(carCtx, false);
+    // 3. Draw AI Swarm
+    if (gameMode === 'VS_AI') {
+        for (let i = 0; i < aiCars.length; i++) {
+            if (aiCars[i] !== aiChampion) aiCars[i].draw(carCtx, false);
+        }
+        if (aiChampion) {
+            aiChampion.sensor.draw(carCtx);
+            aiChampion.draw(carCtx, true);
+            Visualizer.drawNetwork(networkCtx, aiChampion.brain);
         }
     }
 
-    // 4. Draw Champion AI Car with Glow & Sensor Lasers
-    if (bestCar) {
-        if (bestCar.sensor) bestCar.sensor.draw(carCtx);
-        bestCar.draw(carCtx, true);
-
-        // Neural Network Brain HUD
-        if (bestCar.brain) Visualizer.drawNetwork(networkCtx, bestCar.brain);
+    // 4. Draw Player 2 (Purple)
+    if (gameMode === '2_PLAYER' && player2) {
+        player2.draw(carCtx);
     }
 
-    // 5. Draw Human Player Car (Orange)
-    if (playerEnabled && playerCar) {
-        playerCar.draw(carCtx);
+    // 5. Draw Player 1 (Orange)
+    if (player1) {
+        player1.draw(carCtx);
     }
 
-    // 6. Draw Particle Effects (Smoke, Confetti)
-    for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        carCtx.beginPath();
-        carCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        carCtx.fillStyle = p.color;
-        carCtx.fill();
-    }
+    // 6. Draw Countdown (3... 2... 1... GO!)
+    if (gameState === 'COUNTDOWN') {
+        carCtx.save();
+        carCtx.fillStyle = 'rgba(7, 10, 18, 0.7)';
+        carCtx.fillRect(0, 0, carCanvas.width, carCanvas.height);
 
-    // 7. Draw Celebration / Evolution Banners
-    if (bannerNotification.frames > 0) {
-        drawBanner(bannerNotification.text, bannerNotification.color);
-    } else if (evolveDelay > 0) {
-        drawBanner(`🧬 Generation Complete! Evolving Gen ${generation + 1}...`, '#39ff14');
-    }
-}
-
-function drawBanner(text, color) {
-    carCtx.save();
-    carCtx.fillStyle = 'rgba(7, 10, 18, 0.85)';
-    carCtx.fillRect(carCanvas.width / 2 - 220, 20, 440, 44);
-    carCtx.strokeStyle = color;
-    carCtx.lineWidth = 2;
-    carCtx.strokeRect(carCanvas.width / 2 - 220, 20, 440, 44);
-
-    carCtx.fillStyle = color;
-    carCtx.shadowColor = color;
-    carCtx.shadowBlur = 10;
-    carCtx.font = 'bold 16px "Segoe UI", sans-serif';
-    carCtx.textAlign = 'center';
-    carCtx.fillText(text, carCanvas.width / 2, 48);
-    carCtx.restore();
-}
-
-function updateUI() {
-    document.getElementById('genVal').textContent = generation;
-    document.getElementById('fitnessVal').textContent = Math.floor(maxFitnessRecord);
-    document.getElementById('mutationVal').textContent = `${Math.round(mutationRate * 100)}%`;
-}
-
-// UI Event Listeners
-document.getElementById('pauseBtn').addEventListener('click', () => {
-    isPaused = !isPaused;
-    document.getElementById('pauseBtn').textContent = isPaused ? '▶ Resume' : '⏸ Pause';
-    document.getElementById('pauseBtn').classList.toggle('active', isPaused);
-});
-
-document.getElementById('nextGenBtn').addEventListener('click', () => {
-    nextGeneration();
-});
-
-document.getElementById('loadProBtn').addEventListener('click', () => {
-    championBrain = NeuralNetwork.deserialize(NeuralNetwork.DEFAULT_CHAMPION);
-    cars = generateCars(POPULATION_SIZE, championBrain);
-    bestCar = cars[0];
-    bannerNotification = { text: '👑 Loaded Champion AI Pro Model!', frames: 120, color: '#00f3ff' };
-    updateUI();
-});
-
-document.getElementById('saveBtn').addEventListener('click', () => {
-    if (bestCar && bestCar.brain) {
-        localStorage.setItem(STORAGE_KEY, NeuralNetwork.serialize(bestCar.brain));
-        const btn = document.getElementById('saveBtn');
-        const orig = btn.textContent;
-        btn.textContent = '✓ Saved!';
-        setTimeout(() => { btn.textContent = orig; }, 1500);
-    }
-});
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-    if (confirm("Reset to Gen 1 with completely random weights (Train from scratch)?")) {
-        localStorage.removeItem(STORAGE_KEY);
-        championBrain = null;
-        generation = 1;
-        maxFitnessRecord = 0;
-        cars = generateCars(POPULATION_SIZE, null);
-        bestCar = cars[0];
-        if (playerCar) {
-            playerCar.x = track.start.x;
-            playerCar.y = track.start.y;
-            playerCar.angle = track.start.angle;
-            playerCar.speed = 0;
-            playerCar.laps = 0;
-            playerCar.currentLapFrames = 0;
-            playerCar.bestLapSeconds = null;
+        let countText = '3';
+        let countColor = '#ff0055';
+        if (countdownTimer < 60) {
+            countText = '1';
+            countColor = '#ffe600';
+        } else if (countdownTimer < 120) {
+            countText = '2';
+            countColor = '#ff5500';
         }
-        updateUI();
+
+        carCtx.fillStyle = countColor;
+        carCtx.shadowColor = countColor;
+        carCtx.shadowBlur = 30;
+        carCtx.font = 'bold 90px "Segoe UI", sans-serif';
+        carCtx.textAlign = 'center';
+        carCtx.textBaseline = 'middle';
+        carCtx.fillText(countText, carCanvas.width / 2, carCanvas.height / 2 - 20);
+
+        carCtx.fillStyle = '#ffffff';
+        carCtx.shadowBlur = 10;
+        carCtx.font = 'bold 22px "Segoe UI", sans-serif';
+        carCtx.fillText('GET READY TO RACE!', carCanvas.width / 2, carCanvas.height / 2 + 60);
+        carCtx.restore();
     }
+
+    // 7. Draw Confetti on Victory
+    for (let i = 0; i < confetti.length; i++) {
+        const c = confetti[i];
+        carCtx.save();
+        carCtx.translate(c.x, c.y);
+        carCtx.rotate((c.rotation * Math.PI) / 180);
+        carCtx.fillStyle = c.color;
+        carCtx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 0.6);
+        carCtx.restore();
+    }
+}
+
+// UI Event Handlers
+document.getElementById('restartBtn').addEventListener('click', () => {
+    setupRace();
 });
 
-// Speed Multipliers
-const speedBtns = document.querySelectorAll('.speed-btn');
-speedBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        speedBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        simSpeed = parseInt(btn.dataset.speed, 10);
-    });
+document.getElementById('playAgainBtn').addEventListener('click', () => {
+    setupRace();
 });
 
-// Mutation slider
-const mutationSlider = document.getElementById('mutationSlider');
-mutationSlider.addEventListener('input', (e) => {
-    mutationRate = parseFloat(e.target.value);
-    document.getElementById('mutationVal').textContent = `${Math.round(mutationRate * 100)}%`;
+document.getElementById('modeVsAiBtn').addEventListener('click', () => {
+    gameMode = 'VS_AI';
+    document.getElementById('modeVsAiBtn').classList.add('active');
+    document.getElementById('mode2PBtn').classList.remove('active');
+    document.getElementById('controlsNotice').innerHTML = `
+        🔥 <span style="color: #ff5500;">YOU ARE THE ORANGE CAR:</span> Drive with <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; <span style="color: #00f3ff;">Race the AI Swarm to complete 1 full circle!</span>
+    `;
+    setupRace();
+});
+
+document.getElementById('mode2PBtn').addEventListener('click', () => {
+    gameMode = '2_PLAYER';
+    document.getElementById('mode2PBtn').classList.add('active');
+    document.getElementById('modeVsAiBtn').classList.remove('active');
+    document.getElementById('controlsNotice').innerHTML = `
+        👥 <b>2-PLAYER LOCAL RACE:</b> &nbsp; 
+        <span style="color: #ff5500;">P1 (Orange):</span> <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> Arrows &nbsp;|&nbsp; 
+        <span style="color: #a855f7;">P2 (Purple):</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; First to 1 full circle wins!
+    `;
+    setupRace();
 });
 
 // Audio Toggle
@@ -466,39 +377,62 @@ audioBtn.addEventListener('click', () => {
     audioBtn.classList.toggle('active', soundEnabled);
 });
 
-// Keyboard Controls (WASD / Arrows + Shift Boost)
+// Keyboard Controls (P1: Arrows | P2: WASD)
 window.addEventListener('keydown', (e) => {
     initAudio();
-    if (e.key === 'ArrowUp' || e.code === 'KeyW') {
-        humanKeys.forward = true;
-        e.preventDefault();
-    } else if (e.key === 'ArrowDown' || e.code === 'KeyS') {
-        humanKeys.reverse = true;
-        e.preventDefault();
-    } else if (e.key === 'ArrowLeft' || e.code === 'KeyA') {
-        humanKeys.left = true;
-        e.preventDefault();
-    } else if (e.key === 'ArrowRight' || e.code === 'KeyD') {
-        humanKeys.right = true;
-        e.preventDefault();
-    } else if (e.key === 'Shift') {
-        humanKeys.boost = true;
+
+    // Player 1 (Arrow Keys)
+    if (e.key === 'ArrowUp') { keysP1.forward = true; e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { keysP1.reverse = true; e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { keysP1.left = true; e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { keysP1.right = true; e.preventDefault(); }
+    else if (e.key === 'Shift') { keysP1.boost = true; }
+
+    // If Solo Mode, also allow WASD for Player 1!
+    if (gameMode === 'VS_AI') {
+        if (e.code === 'KeyW') { keysP1.forward = true; e.preventDefault(); }
+        else if (e.code === 'KeyS') { keysP1.reverse = true; e.preventDefault(); }
+        else if (e.code === 'KeyA') { keysP1.left = true; e.preventDefault(); }
+        else if (e.code === 'KeyD') { keysP1.right = true; e.preventDefault(); }
+    } else {
+        // Player 2 (WASD)
+        if (e.code === 'KeyW') { keysP2.forward = true; e.preventDefault(); }
+        else if (e.code === 'KeyS') { keysP2.reverse = true; e.preventDefault(); }
+        else if (e.code === 'KeyA') { keysP2.left = true; e.preventDefault(); }
+        else if (e.code === 'KeyD') { keysP2.right = true; e.preventDefault(); }
+        else if (e.code === 'Space') { keysP2.boost = true; }
     }
 
-    if (e.code === 'Space') {
-        e.preventDefault();
-        document.getElementById('pauseBtn').click();
-    } else if (e.key === 'n' || e.key === 'N') {
-        nextGeneration();
+    if (e.key === 'r' || e.key === 'R') {
+        setupRace();
     }
 });
 
 window.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowUp' || e.code === 'KeyW') humanKeys.forward = false;
-    else if (e.key === 'ArrowDown' || e.code === 'KeyS') humanKeys.reverse = false;
-    else if (e.key === 'ArrowLeft' || e.code === 'KeyA') humanKeys.left = false;
-    else if (e.key === 'ArrowRight' || e.code === 'KeyD') humanKeys.right = false;
-    else if (e.key === 'Shift') humanKeys.boost = false;
+    // Player 1
+    if (e.key === 'ArrowUp') keysP1.forward = false;
+    else if (e.key === 'ArrowDown') keysP1.reverse = false;
+    else if (e.key === 'ArrowLeft') keysP1.left = false;
+    else if (e.key === 'ArrowRight') keysP1.right = false;
+    else if (e.key === 'Shift') keysP1.boost = false;
+
+    // Solo or Player 2
+    if (gameMode === 'VS_AI') {
+        if (e.code === 'KeyW') keysP1.forward = false;
+        else if (e.code === 'KeyS') keysP1.reverse = false;
+        else if (e.code === 'KeyA') keysP1.left = false;
+        else if (e.code === 'KeyD') keysP1.right = false;
+    } else {
+        if (e.code === 'KeyW') keysP2.forward = false;
+        else if (e.code === 'KeyS') keysP2.reverse = false;
+        else if (e.code === 'KeyA') keysP2.left = false;
+        else if (e.code === 'KeyD') keysP2.right = false;
+        else if (e.code === 'Space') keysP2.boost = false;
+    }
 });
 
-window.addEventListener('DOMContentLoaded', init);
+// Launch on page load
+window.addEventListener('DOMContentLoaded', () => {
+    setupRace();
+    requestAnimationFrame(animate);
+});
