@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grand Prix Racing — Human vs AI & 2-Player Battle</title>
+    <title>Neon Getaway — Police Chase Survival</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <div class="logo-area">
-            <span class="logo-icon">🏎️</span>
-            <h1>Grand Prix Racing</h1>
-            <span class="subtitle">// FULL-LAP CHAMPIONSHIP</span>
+            <span class="logo-icon">🚨</span>
+            <h1>Neon Getaway</h1>
+            <span class="subtitle">// POLICE PURSUIT SURVIVAL</span>
         </div>
         <div class="quick-actions">
-            <!-- Mode Selector -->
-            <button id="modeVsAiBtn" class="btn active" title="Race against the Neural Network AI">🤖 1 Player vs AI</button>
-            <button id="mode2PBtn" class="btn" title="Two players on the same keyboard!">👥 2 Players (Local)</button>
+            <!-- Wanted Stars -->
+            <div class="wanted-container">
+                <span style="font-size: 0.72rem; color: #8492a6; font-weight: 700;">WANTED:</span>
+                <span id="wantedStars" class="wanted-stars">⭐</span>
+            </div>
             <!-- Restart Button -->
             <button id="restartBtn" class="btn btn-danger" style="font-weight: 700;">🔄 כפתור: שחק שוב (Restart)</button>
             <button id="audioBtn" class="btn active">🔊 Sound: ON</button>
@@ -24,23 +26,44 @@
     </header>
 
     <main class="app-container">
-        <!-- Main Circuit Viewport -->
+        <!-- Main City Viewport -->
         <section class="canvas-wrapper">
             <canvas id="carCanvas" width="1060" height="700"></canvas>
             
-            <!-- Dynamic Controls Notice -->
-            <div id="controlsNotice" style="margin-top: 10px; font-size: 0.9rem; color: #ffaa00; font-weight: 700; text-align: center;">
-                🔥 <span style="color: #ff5500;">YOU ARE THE ORANGE CAR:</span> Drive with <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; <span style="color: #00f3ff;">Race the AI Swarm to complete 1 full circle!</span>
+            <!-- Controls Guide Bar -->
+            <div id="controlsNotice" style="margin-top: 10px; font-size: 0.88rem; color: #ffaa00; font-weight: 700; text-align: center;">
+                🔥 <span style="color: #ff5500;">DRIVE:</span> <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; 
+                <span style="color: #00f3ff;">NITRO:</span> Hold <kbd>Shift</kbd> &nbsp;|&nbsp; 
+                <span style="color: #39ff14;">EMP BLAST:</span> Press <kbd>Space</kbd> ⚡
             </div>
 
-            <!-- Victory Celebration Popup Modal (Opens when someone wins!) -->
-            <div id="victoryModal" class="victory-modal hidden">
+            <!-- BUSTED / GAME OVER MODAL -->
+            <div id="bustedModal" class="victory-modal hidden">
                 <div class="victory-card">
-                    <div class="trophy-icon">🏆</div>
-                    <h2 id="winnerTitle">PLAYER 1 WINS!</h2>
-                    <p id="winnerSubtitle" style="color: #8492a6; margin-bottom: 8px;">Checkered flag reached!</p>
-                    <p id="winnerTime" class="winner-time">Winning Time: 15.2s</p>
-                    <div style="margin-top: 20px;">
+                    <div class="trophy-icon">🚨</div>
+                    <h2 style="color: #ff0055; font-size: 2.2rem; letter-spacing: 2px;">BUSTED!</h2>
+                    <p style="color: #cbd5e1; margin-bottom: 12px;">You were cornered by the Police Department!</p>
+                    
+                    <div class="busted-stats-grid">
+                        <div class="busted-stat">
+                            <div class="stat-label">Survived</div>
+                            <div id="bustedSurviveTime" class="stat-val" style="color: #ffe600;">0.0s</div>
+                        </div>
+                        <div class="busted-stat">
+                            <div class="stat-label">Cash Stashed</div>
+                            <div id="bustedCash" class="stat-val" style="color: #39ff14;">$0</div>
+                        </div>
+                        <div class="busted-stat">
+                            <div class="stat-label">Wanted Peak</div>
+                            <div id="bustedStars" class="stat-val" style="color: #ff5500;">⭐</div>
+                        </div>
+                        <div class="busted-stat">
+                            <div class="stat-label">All-Time Best</div>
+                            <div id="bustedBest" class="stat-val" style="color: #00f3ff;">0.0s</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px;">
                         <button id="playAgainBtn" class="btn btn-primary btn-big">
                             🔄 כפתור: שחק שוב / PLAY AGAIN
                         </button>
@@ -49,67 +72,69 @@
             </div>
         </section>
 
-        <!-- Sidebar Dashboard -->
+        <!-- Sidebar Telemetry -->
         <aside class="sidebar">
-            <!-- Race Telemetry -->
+            <!-- Health Status -->
             <div class="panel-card" style="border-color: rgba(255, 85, 0, 0.45);">
-                <div class="panel-title" style="color: #ff7733;">
-                    <span>Live Race Telemetry</span>
-                    <span id="rankVal" style="font-size: 0.85rem; color: #ffe600; font-weight: 800;">🥇 1st Place</span>
+                <div class="panel-title" style="color: #ff5500;">
+                    <span>Car Integrity</span>
+                    <span id="hpVal" style="color: #39ff14; font-weight: 800;">100%</span>
                 </div>
-                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="hp-bar-outer">
+                    <div id="hpFill" class="hp-bar-fill"></div>
+                </div>
+                <div id="empIndicator" class="emp-indicator">
+                    ⚡ EMP: 2 READY (Press Space)
+                </div>
+            </div>
+
+            <!-- Live Telemetry -->
+            <div class="panel-card">
+                <div class="panel-title" style="color: #00f3ff;">
+                    <span>Police Dispatch Telemetry</span>
+                    <span style="font-size: 0.7rem; color: #ff0055;">● CHASE ACTIVE</span>
+                </div>
+                <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
                     <div class="stat-box">
                         <div class="stat-label">Speed</div>
                         <div class="stat-val" style="color: #00f3ff;"><span id="speedKmhVal">0</span><span style="font-size: 0.65rem; color: #8492a6;"> KM/H</span></div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Race Time</div>
-                        <div id="currentLapVal" class="stat-val" style="color: #ffe600;">0.0s</div>
+                        <div class="stat-label">Survival Time</div>
+                        <div id="surviveTimeVal" class="stat-val" style="color: #ffe600;">0.0s</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Track Progress</div>
-                        <div id="checkpointsVal" class="stat-val" style="color: #39ff14; font-size: 0.95rem;">0 / 95</div>
+                        <div class="stat-label">Cash Collected</div>
+                        <div id="cashScoreVal" class="stat-val" style="color: #39ff14; font-size: 1.05rem;">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Police Units</div>
+                        <div id="copsCountVal" class="stat-val" style="color: #ff0055;">2</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Champion AI Brain Visualizer -->
-            <div class="panel-card">
-                <div class="panel-title">
-                    <span>Champion AI Neural Network</span>
-                    <span style="font-size: 0.7rem; color: #00f3ff;">[5-6-4 MLP]</span>
-                </div>
-                <div class="network-container">
-                    <canvas id="networkCanvas" width="300" height="230"></canvas>
-                    <div class="network-legend">
-                        <span class="legend-item"><span class="dot dot-pos"></span> +Weight</span>
-                        <span class="legend-item"><span class="dot dot-neg"></span> -Weight</span>
-                        <span class="legend-item"><span class="dot dot-fire"></span> Active</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Rules & Guide for Mentor -->
+            <!-- Survival Guide for Mentor -->
             <div class="panel-card" style="background: rgba(14, 20, 36, 0.95);">
-                <div class="panel-title" style="color: #39ff14;">
-                    <span>🏁 Grand Prix Rules</span>
+                <div class="panel-title" style="color: #ffe600;">
+                    <span>🎮 Mission Objectives</span>
                 </div>
                 <div style="font-size: 0.8rem; line-height: 1.6; color: #cbd5e1;">
-                    <p>• <b>Continuous Racing:</b> Cars never die on wall bumps! They bounce off and keep going.</p>
-                    <p>• <b>Win Condition:</b> First car to complete <b>1 full circle</b> around the track takes the trophy!</p>
-                    <p>• <b>2-Player Mode:</b> Partner 1 uses <kbd>Arrows</kbd>, Partner 2 uses <kbd>WASD</kbd>.</p>
-                    <p>• <b>Restart Anytime:</b> Click the <b style="color: #ff5500;">"שחק שוב"</b> button or press <kbd>R</kbd>.</p>
+                    <p>• <b>Survive:</b> Police AI cruisers hunt your car down and attempt to ram you!</p>
+                    <p>• <b>Lure & Smash:</b> Steer around buildings so cops crash into walls and explode (+$1,000)!</p>
+                    <p>• <b>Power-Ups:</b></p>
+                    <p style="margin-left: 8px;">💰 <b>Cash</b> (+$500 to your score)</p>
+                    <p style="margin-left: 8px;">🔧 <b>Wrench</b> (+35% Health repair)</p>
+                    <p style="margin-left: 8px;">⚡ <b>EMP</b> (Press <kbd>Space</kbd> to blast surrounding cops away!)</p>
+                    <p>• <b>Wanted Stars:</b> Scale every 15s bringing fast cruisers and heavy SWAT vans!</p>
                 </div>
             </div>
         </aside>
     </main>
 
     <!-- Architecture Scripts -->
-    <script src="track.js"></script>
-    <script src="network.js"></script>
-    <script src="sensor.js"></script>
+    <script src="city.js"></script>
     <script src="car.js"></script>
-    <script src="visualizer.js"></script>
     <script src="main.js"></script>
 </body>
 </html>
