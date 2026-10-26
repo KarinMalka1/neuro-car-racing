@@ -323,7 +323,7 @@ function updatePhysics() {
     player.controls.left = keys.left ? 1 : 0;
     player.controls.right = keys.right ? 1 : 0;
     player.controls.boost = keys.boost ? 1 : 0;
-    player.update(city.borders);
+    player.update(city);
 
     if (player.isSkidding) {
         skidMarks.push({ x: player.x, y: player.y, alpha: 0.55 });
@@ -333,7 +333,7 @@ function updatePhysics() {
     // Update Cops
     for (let i = cops.length - 1; i >= 0; i--) {
         const cop = cops[i];
-        cop.update(player, city.borders, cops);
+        cop.update(player, city, cops);
 
         // Player vs Cop bump (Player takes only minimal damage!)
         if (CarUtils.polysIntersect(player.polygon, [cop.polygon[0], cop.polygon[2]])) {
