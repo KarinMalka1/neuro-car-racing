@@ -417,9 +417,9 @@ class CarUtils {
             }
         }
 
-        // 3. CENTRAL ROUNDABOUT PLAZA (Solid circular obstacle)
-        if (city.roundabout) {
-            const r = city.roundabout;
+        // 3. ROUNDABOUT PLAZAS (Solid circular obstacles)
+        const roundabouts = city.roundabouts || (city.roundabout ? [city.roundabout] : []);
+        for (const r of roundabouts) {
             let poly = car.createPolygon();
             for (let i = 0; i < poly.length; i++) {
                 const pt = poly[i];

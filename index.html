@@ -3,21 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Getaway — Police Chase Survival</title>
+    <title>Neon Getaway — Police Pursuit Survival (4 Stages)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <div class="logo-area">
             <span class="logo-icon">🚨</span>
-            <h1>Neon Getaway</h1>
-            <span class="subtitle">// POLICE PURSUIT SURVIVAL</span>
+            <div>
+                <h1>Neon Getaway</h1>
+                <span class="subtitle">// POLICE PURSUIT SURVIVAL</span>
+            </div>
         </div>
+
+        <!-- Interactive Stage Selector Pills -->
+        <div class="stage-pills" id="stageSelector">
+            <span class="stage-selector-label" style="font-size: 0.72rem; color: #8492a6; font-weight: 700; margin-right: 4px;">STAGES:</span>
+            <button class="stage-pill active" data-stage="1" title="Downtown Cyber Grid (Press 1)">
+                <span class="stage-num">1</span> Downtown
+            </button>
+            <button class="stage-pill" data-stage="2" title="Industrial Docks (Press 2)">
+                <span class="stage-num">2</span> Docks
+            </button>
+            <button class="stage-pill" data-stage="3" title="Neon Alleyways (Press 3)">
+                <span class="stage-num">3</span> Alleys
+            </button>
+            <button class="stage-pill" data-stage="4" title="Maximum Overdrive (Press 4)">
+                <span class="stage-num">4</span> Overdrive ⚡
+            </button>
+        </div>
+
         <div class="quick-actions">
             <!-- Win Countdown Timer in Header -->
             <div class="wanted-container" style="border-color: rgba(57, 255, 20, 0.4);">
                 <span style="font-size: 0.72rem; color: #8492a6; font-weight: 700;">ESCAPE IN:</span>
-                <span id="escapeTimerVal" style="font-size: 1.15rem; color: #39ff14; font-weight: 800; font-family: var(--font-mono);">35.0s</span>
+                <span id="escapeTimerVal" style="font-size: 1.15rem; color: #39ff14; font-weight: 800; font-family: var(--font-mono);">30.0s</span>
             </div>
             <!-- Restart Button -->
             <button id="restartBtn" class="btn btn-danger" style="font-weight: 700;">🔄 כפתור: שחק שוב (Restart)</button>
@@ -35,20 +55,20 @@
                 🔥 <span style="color: #ff5500;">DRIVE:</span> <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;|&nbsp; 
                 <span style="color: #00f3ff;">NITRO:</span> Hold <kbd>Shift</kbd> &nbsp;|&nbsp; 
                 <span style="color: #39ff14;">EMP BLAST:</span> Press <kbd>Space</kbd> ⚡ &nbsp;|&nbsp;
-                <span style="color: #ffe600;">MISSION: Survive 35s to WIN!</span>
+                <span id="missionTargetText" style="color: #ffe600;">STAGES: Press 1, 2, 3, 4 to switch maps!</span>
             </div>
 
             <!-- DYNAMIC VICTORY / BUSTED MODAL -->
             <div id="endGameModal" class="victory-modal hidden">
                 <div class="victory-card">
                     <div id="modalIcon" class="trophy-icon">🏆</div>
-                    <h2 id="modalTitle" style="font-size: 2.1rem; letter-spacing: 1.5px; margin-bottom: 6px;">YOU ESCAPED! YOU WON!</h2>
+                    <h2 id="modalTitle" style="font-size: 2.1rem; letter-spacing: 1.5px; margin-bottom: 6px;">STAGE 1 CLEARED!</h2>
                     <p id="modalSubtitle" style="color: #cbd5e1; margin-bottom: 14px;">The police lost your signal!</p>
                     
                     <div class="busted-stats-grid">
                         <div class="busted-stat">
                             <div id="modalStatTimeLabel" class="stat-label">Escape Time</div>
-                            <div id="modalStatTime" class="stat-val" style="color: #ffe600;">35.0s</div>
+                            <div id="modalStatTime" class="stat-val" style="color: #ffe600;">30.0s</div>
                         </div>
                         <div class="busted-stat">
                             <div class="stat-label">Cash Stashed</div>
@@ -60,13 +80,18 @@
                         </div>
                         <div class="busted-stat">
                             <div class="stat-label">Next Target</div>
-                            <div class="stat-val" style="color: #ffaa00;">STAGE 2 🚀</div>
+                            <div id="modalNextStageVal" class="stat-val" style="color: #ffaa00;">STAGE 2 🚀</div>
                         </div>
                     </div>
 
-                    <div style="margin-top: 24px;">
-                        <button id="playAgainBtn" class="btn btn-primary btn-big">
-                            🔄 כפתור: שחק שוב / PLAY AGAIN
+                    <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Primary Action: Next Stage -->
+                        <button id="nextStageBtn" class="btn btn-big btn-next-stage">
+                            🚀 NEXT STAGE: STAGE 2 (עבור לשלב הבא) ➔
+                        </button>
+                        <!-- Secondary Action: Replay Current Stage -->
+                        <button id="playAgainBtn" class="btn btn-secondary">
+                            🔄 Retry Current Stage (נסה שוב את השלב)
                         </button>
                     </div>
                 </div>
@@ -75,6 +100,20 @@
 
         <!-- Sidebar Telemetry -->
         <aside class="sidebar">
+            <!-- Stage Sector Card -->
+            <div class="panel-card" style="border-color: rgba(0, 243, 255, 0.45);">
+                <div class="panel-title" style="color: #00f3ff;">
+                    <span>Current Sector</span>
+                    <span id="currentStageBadge" style="background: rgba(0, 243, 255, 0.2); color: #00f3ff; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 800;">STAGE 1</span>
+                </div>
+                <div id="stageDisplay" style="font-size: 0.95rem; font-weight: 800; color: #ffe600; margin-bottom: 6px;">
+                    STAGE 1: DOWNTOWN CYBER GRID
+                </div>
+                <div id="stageInfoDesc" style="font-size: 0.78rem; color: #8492a6; line-height: 1.4;">
+                    Target: Survive 30s | Cops: 1 Patrol Unit | Layout: 4 Corner Blocks + Central Plaza
+                </div>
+            </div>
+
             <!-- Health Status -->
             <div class="panel-card" style="border-color: rgba(255, 85, 0, 0.45);">
                 <div class="panel-title" style="color: #ff5500;">
@@ -92,7 +131,7 @@
             <!-- Live Telemetry -->
             <div class="panel-card">
                 <div class="panel-title" style="color: #00f3ff;">
-                    <span>Mission Telemetry</span>
+                    <span>Pursuit Telemetry</span>
                     <span style="font-size: 0.7rem; color: #39ff14;">● SURVIVAL ACTIVE</span>
                 </div>
                 <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
@@ -102,7 +141,7 @@
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Police Chasing</div>
-                        <div id="copsCountVal" class="stat-val" style="color: #ff0055;">1 / 2</div>
+                        <div id="copsCountVal" class="stat-val" style="color: #ff0055;">1 Active</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Cash Collected</div>
@@ -118,14 +157,14 @@
             <!-- Survival Guide for Mentor -->
             <div class="panel-card" style="background: rgba(14, 20, 36, 0.95); border-color: rgba(57, 255, 20, 0.35);">
                 <div class="panel-title" style="color: #39ff14;">
-                    <span>🏁 HOW TO WIN THE GAME</span>
+                    <span>🏁 4 PROGRESSIVE STAGES</span>
                 </div>
                 <div style="font-size: 0.8rem; line-height: 1.6; color: #cbd5e1;">
-                    <p>• <b>WIN GOAL:</b> Survive for <b>35 seconds</b> to escape the city and WIN!</p>
-                    <p>• <b>SPEED UP WIN:</b> Collecting 💰 <b>Cash</b> cuts <b>-3s</b> from your escape time!</p>
-                    <p>• <b>FEW POLICE:</b> Only <b>1 to 2 police cars</b> exist in total!</p>
-                    <p>• <b>CRASH COPS:</b> Trick police into hitting buildings to blow them up (<b>-4s escape bonus!</b>).</p>
-                    <p>• <b>RESTART:</b> Click <b style="color: #ff5500;">"שחק שוב"</b> or press <kbd>R</kbd> anytime.</p>
+                    <p>• <b>STAGE 1:</b> Downtown Grid (30s escape, 1 cop)</p>
+                    <p>• <b>STAGE 2:</b> Industrial Docks (34s escape, SWAT van)</p>
+                    <p>• <b>STAGE 3:</b> Neon Alleyways (36s escape, 2 fast interceptors)</p>
+                    <p>• <b>STAGE 4:</b> Maximum Overdrive (40s, dual plazas)</p>
+                    <p>• <b>SWITCH STAGES:</b> Click Stage buttons above or press keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> anytime!</p>
                 </div>
             </div>
         </aside>

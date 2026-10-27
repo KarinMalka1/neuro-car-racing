@@ -1,16 +1,50 @@
 /**
- * NEON GETAWAY — Police Chase Survival Game Engine (Win-Enabled Edition)
- * Features:
- * - FEW POLICE CARS (Max 1-2 cops total!)
- * - CLEAR WIN CONDITION (Survive 35s or collect cash to escape the city and WIN!)
- * - Victory fanfare, Confetti, and "שחק שוב" Restart Button
+ * NEON GETAWAY — Police Chase Survival Game Engine (4-Stage Progressive Edition)
+ * Featuring:
+ * - 4 UNIQUE PROGRESSIVE STAGES (Downtown, Docks, Neon Alleyways, Maximum Overdrive!)
+ * - Stage Selector Pills (Click Stage 1, 2, 3, or 4 anytime!)
+ * - Next Stage Progression on Victory
+ * - Capped Police Swarm (Max 1-2 cops per stage)
+ * - 100% Solid Boundary & Building Physics
  */
 
 const carCanvas = document.getElementById('carCanvas');
 const carCtx = carCanvas.getContext('2d');
 
-// Game State
-let city = new CityArena(1060, 700);
+// Stage Definitions & Configurations
+const STAGE_CONFIGS = {
+    1: { 
+        name: "STAGE 1: DOWNTOWN CYBER GRID", 
+        escapeSec: 30, 
+        playerSpawn: { x: 530, y: 615 },
+        cops: [{ x: 100, y: 100, swat: false }],
+        desc: "Target: Survive 30s | Cops: 1 Patrol Unit | Layout: 4 Corner Blocks + Central Plaza"
+    },
+    2: { 
+        name: "STAGE 2: INDUSTRIAL DOCKS", 
+        escapeSec: 34, 
+        playerSpawn: { x: 430, y: 615 },
+        cops: [{ x: 100, y: 100, swat: false }, { x: 940, y: 580, swat: true }],
+        desc: "Target: Survive 34s | Cops: 2 Units (incl. SWAT Armored Van) | Layout: Warehouses & Shipping Docks"
+    },
+    3: { 
+        name: "STAGE 3: NEON ALLEYWAYS", 
+        escapeSec: 36, 
+        playerSpawn: { x: 530, y: 615 },
+        cops: [{ x: 100, y: 100, swat: false }, { x: 940, y: 100, swat: false }],
+        desc: "Target: Survive 36s | Cops: 2 Fast Interceptors | Layout: Narrow Alleyways & Center Isle"
+    },
+    4: { 
+        name: "STAGE 4: MAXIMUM OVERDRIVE", 
+        escapeSec: 40, 
+        playerSpawn: { x: 530, y: 620 },
+        cops: [{ x: 100, y: 100, swat: false }, { x: 940, y: 580, swat: true }],
+        desc: "Target: Survive 40s | Cops: High-Speed Heat (SWAT + Interceptor) | Layout: Dual Roundabouts & Core"
+    }
+};
+
+let currentStage = 1;
+let city = new CityArena(1060, 700, currentStage);
 let player = null;
 let cops = [];
 let collectibles = [];
@@ -22,7 +56,7 @@ let floatingTexts = [];
 
 let gameState = 'COUNTDOWN'; // 'COUNTDOWN', 'PLAYING', 'VICTORY', 'GAME_OVER'
 let countdownTimer = 120; // 2 seconds
-const TOTAL_ESCAPE_FRAMES = 35 * 60; // 35 seconds to WIN
+let TOTAL_ESCAPE_FRAMES = 30 * 60;
 let escapeFrames = TOTAL_ESCAPE_FRAMES;
 let cashScore = 0;
 let wantedLevel = 1;
@@ -132,9 +166,16 @@ function updateSirenAudio() {
     sirenGain.gain.setValueAtTime(0.03, time);
 }
 
-// Reset / Start Game
-function resetGame() {
-    player = new PlayerCar(city.width / 2, city.height / 2 + 120, 0);
+// Stage Loader: Switches between Stage 1, 2, 3, 4 seamlessly!
+function loadStage(stageNum) {
+    currentStage = Math.max(1, Math.min(4, stageNum));
+    const cfg = STAGE_CONFIGS[currentStage];
+
+    city = new CityArena(1060, 700, currentStage);
+    const spawnX = cfg.playerSpawn ? cfg.playerSpawn.x : city.width / 2;
+    const spawnY = cfg.playerSpawn ? cfg.playerSpawn.y : city.height - 120;
+    player = new PlayerCar(spawnX, spawnY, 0);
+
     cops = [];
     collectibles = [];
     particles = [];
@@ -145,25 +186,46 @@ function resetGame() {
 
     gameState = 'COUNTDOWN';
     countdownTimer = 120;
+    TOTAL_ESCAPE_FRAMES = cfg.escapeSec * 60;
     escapeFrames = TOTAL_ESCAPE_FRAMES;
-    cashScore = 0;
-    wantedLevel = 1;
+    wantedLevel = currentStage;
     screenShake = 0;
 
-    // FEW POLICE: Start with ONLY 1 police car!
-    spawnCop(100, 100, false);
+    // Spawn Stage Specific Police Fleet
+    cfg.cops.forEach(c => spawnCop(c.x, c.y, c.swat));
 
-    // Initial collectibles
+    // Spawn Collectibles
     spawnCollectible('CASH');
     spawnCollectible('WRENCH');
     spawnCollectible('EMP');
+
+    // Update UI Stage Pills
+    document.querySelectorAll('.stage-pill').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.stage, 10) === currentStage);
+    });
+
+    const stageTitleEl = document.getElementById('stageDisplay');
+    if (stageTitleEl) stageTitleEl.textContent = cfg.name;
+
+    const stageBadgeEl = document.getElementById('currentStageBadge');
+    if (stageBadgeEl) stageBadgeEl.textContent = `STAGE ${currentStage}`;
+
+    const stageDescEl = document.getElementById('stageInfoDesc');
+    if (stageDescEl && cfg.desc) stageDescEl.textContent = cfg.desc;
+
+    const missionTargetText = document.getElementById('missionTargetText');
+    if (missionTargetText) missionTargetText.textContent = `MISSION: Survive ${cfg.escapeSec}s in ${cfg.name} to WIN!`;
 
     document.getElementById('endGameModal').classList.add('hidden');
     updateHUD();
 }
 
+function resetGame() {
+    loadStage(currentStage);
+}
+
 function spawnCop(x, y, isSwat = false) {
-    if (cops.length >= 2) return; // STRICT MAXIMUM 2 COPS TOTAL!
+    if (cops.length >= 2) return; // Cap at 2 cops max for balanced gameplay
     cops.push(new CopCar(x, y, isSwat));
 }
 
@@ -178,7 +240,9 @@ function spawnCollectible(type = null) {
         for (const b of city.buildings) {
             if (x > b.x - 20 && x < b.x + b.w + 20 && y > b.y - 20 && y < b.y + b.h + 20) inBuilding = true;
         }
-        if (Math.hypot(x - city.roundabout.x, y - city.roundabout.y) < city.roundabout.radius + 30) inBuilding = true;
+        for (const r of city.roundabouts) {
+            if (Math.hypot(x - r.x, y - r.y) < r.radius + 30) inBuilding = true;
+        }
         if (!inBuilding) { valid = true; break; }
     }
     if (valid) collectibles.push(new Collectible(x, y, chosenType));
@@ -213,8 +277,7 @@ function triggerExplosion(x, y, addCash = true) {
 
     if (addCash) {
         cashScore += 1000;
-        // Destroying a cop speeds up escape by 4 seconds!
-        escapeFrames = Math.max(0, escapeFrames - 240);
+        escapeFrames = Math.max(0, escapeFrames - 240); // -4s escape time bonus!
         showFloatingText('+$1,000 WRECKED! (-4s ESCAPE)', x, y, '#39ff14');
     }
 
@@ -235,12 +298,11 @@ function showFloatingText(text, x, y, color = '#ffffff') {
     floatingTexts.push({ text, x, y, color, life: 55, vy: -1.1 });
 }
 
-// WIN CONDITION: PLAYER ESCAPES!
+// VICTORY: STAGE CLEARED
 function triggerVictory() {
     gameState = 'VICTORY';
     playSound('victory');
 
-    // Massive victory confetti fireworks
     for (let i = 0; i < 160; i++) {
         confetti.push({
             x: carCanvas.width / 2 + (Math.random() - 0.5) * 450,
@@ -254,19 +316,44 @@ function triggerVictory() {
         });
     }
 
-    document.getElementById('modalIcon').textContent = '🏆';
-    document.getElementById('modalTitle').textContent = 'YOU ESCAPED! YOU WON!';
+    const isFinalStage = (currentStage === 4);
+    document.getElementById('modalIcon').textContent = isFinalStage ? '👑' : '🏆';
+    document.getElementById('modalTitle').textContent = isFinalStage ? 'GRAND CHAMPION! ALL 4 STAGES BEATEN!' : `STAGE ${currentStage} CLEARED!`;
     document.getElementById('modalTitle').style.color = '#39ff14';
-    document.getElementById('modalSubtitle').textContent = 'The police lost your signal! You successfully broke free!';
+    document.getElementById('modalSubtitle').textContent = isFinalStage ? 'You outsmarted the entire police department across all 4 city sectors!' : `District secured! Get ready for Stage ${currentStage + 1}!`;
     document.getElementById('modalStatTimeLabel').textContent = 'Escape Time';
     document.getElementById('modalStatTime').textContent = `${((TOTAL_ESCAPE_FRAMES - escapeFrames) / 60).toFixed(1)}s`;
     document.getElementById('modalCash').textContent = `$${cashScore.toLocaleString()}`;
-    document.getElementById('modalStatusLabel').textContent = 'Status';
-    document.getElementById('modalStatus').textContent = 'CLEARED ✅';
+    document.getElementById('modalStatusLabel').textContent = 'Mission';
+    document.getElementById('modalStatus').textContent = isFinalStage ? 'ALL CLEARED 👑' : `STAGE ${currentStage} ✅`;
+
+    const nextValEl = document.getElementById('modalNextStageVal');
+    if (nextValEl) {
+        nextValEl.textContent = isFinalStage ? 'REPLAY ALL 👑' : `STAGE ${currentStage + 1} 🚀`;
+    }
+
+    // Configure Next Stage Button
+    const nextBtn = document.getElementById('nextStageBtn');
+    if (nextBtn) {
+        if (isFinalStage) {
+            nextBtn.textContent = '👑 PLAY ALL FROM STAGE 1 (שחק שוב משלב 1)';
+            nextBtn.onclick = () => loadStage(1);
+        } else {
+            nextBtn.textContent = `🚀 NEXT STAGE: STAGE ${currentStage + 1} (עבור לשלב ${currentStage + 1}) ➔`;
+            nextBtn.onclick = () => loadStage(currentStage + 1);
+        }
+    }
+
+    const playAgainBtn = document.getElementById('playAgainBtn');
+    if (playAgainBtn) {
+        playAgainBtn.textContent = `🔄 Retry Stage ${currentStage} (שחק שוב את שלב ${currentStage})`;
+        playAgainBtn.onclick = () => loadStage(currentStage);
+    }
+
     document.getElementById('endGameModal').classList.remove('hidden');
 }
 
-// BUSTED: PLAYER WRECKED
+// BUSTED
 function gameOver() {
     gameState = 'GAME_OVER';
     playSound('busted');
@@ -275,12 +362,28 @@ function gameOver() {
     document.getElementById('modalIcon').textContent = '🚨';
     document.getElementById('modalTitle').textContent = 'BUSTED!';
     document.getElementById('modalTitle').style.color = '#ff0055';
-    document.getElementById('modalSubtitle').textContent = 'Your car was damaged by the police pursuit!';
+    document.getElementById('modalSubtitle').textContent = `Cornered in Stage ${currentStage}!`;
     document.getElementById('modalStatTimeLabel').textContent = 'Survived';
     document.getElementById('modalStatTime').textContent = `${((TOTAL_ESCAPE_FRAMES - escapeFrames) / 60).toFixed(1)}s`;
     document.getElementById('modalCash').textContent = `$${cashScore.toLocaleString()}`;
     document.getElementById('modalStatusLabel').textContent = 'Status';
     document.getElementById('modalStatus').textContent = 'BUSTED ❌';
+
+    const nextValEl = document.getElementById('modalNextStageVal');
+    if (nextValEl) nextValEl.textContent = `STAGE ${currentStage} ⚠️`;
+
+    const nextBtn = document.getElementById('nextStageBtn');
+    if (nextBtn) {
+        nextBtn.textContent = `🔄 RETRY STAGE ${currentStage} (נסה שוב את השלב)`;
+        nextBtn.onclick = () => loadStage(currentStage);
+    }
+
+    const playAgainBtn = document.getElementById('playAgainBtn');
+    if (playAgainBtn) {
+        playAgainBtn.textContent = `🔄 Start Over from Stage 1 (התחל מחדש משלב 1)`;
+        playAgainBtn.onclick = () => loadStage(1);
+    }
+
     document.getElementById('endGameModal').classList.remove('hidden');
 }
 
@@ -300,16 +403,11 @@ function updatePhysics() {
 
     if (gameState !== 'PLAYING') return;
 
-    // Escape Countdown Timer
+    // Countdown Timer
     escapeFrames--;
     if (escapeFrames <= 0) {
         triggerVictory();
         return;
-    }
-
-    // Police Reinforcements (MAX 2 COPS IN TOTAL!)
-    if (cops.length < 2 && escapeFrames < TOTAL_ESCAPE_FRAMES * 0.6) {
-        spawnCop(city.width - 100, city.height - 100, false);
     }
 
     // Spawn Collectibles
@@ -335,11 +433,11 @@ function updatePhysics() {
         const cop = cops[i];
         cop.update(player, city, cops);
 
-        // Player vs Cop bump (Player takes only minimal damage!)
+        // Player vs Cop collision
         if (CarUtils.polysIntersect(player.polygon, [cop.polygon[0], cop.polygon[2]])) {
             playSound('crash');
             screenShake = 8;
-            player.hp = Math.max(0, player.hp - 6); // Only 6 damage!
+            player.hp = Math.max(0, player.hp - 6);
             cop.hp -= 20;
 
             player.speed = -1.2;
@@ -365,8 +463,7 @@ function updatePhysics() {
             playSound('coin');
             if (item.type === 'CASH') {
                 cashScore += 500;
-                // Cash knocks 3 seconds off escape time!
-                escapeFrames = Math.max(0, escapeFrames - 180);
+                escapeFrames = Math.max(0, escapeFrames - 180); // -3s
                 showFloatingText('+$500 (-3s ESCAPE)', item.x, item.y, '#ffe600');
             } else if (item.type === 'WRENCH') {
                 player.hp = Math.min(player.maxHp, player.hp + 45);
@@ -399,7 +496,6 @@ function updatePhysics() {
         if (f.life <= 0) floatingTexts.splice(i, 1);
     }
 
-    // Check Death
     if (player.hp <= 0) {
         gameOver();
     }
@@ -423,10 +519,10 @@ function updateHUD() {
     const escapeSec = Math.max(0, (escapeFrames / 60)).toFixed(1);
     document.getElementById('escapeTimerVal').textContent = `${escapeSec}s`;
 
-    // Speedometer
+    // Speedometer & Stats
     document.getElementById('speedKmhVal').textContent = Math.round(Math.abs(player.speed) * 32);
     document.getElementById('cashScoreVal').textContent = `$${cashScore.toLocaleString()}`;
-    document.getElementById('copsCountVal').textContent = `${cops.length} / 2`;
+    document.getElementById('copsCountVal').textContent = `${cops.length} Active`;
 
     // EMP Status
     const empBtn = document.getElementById('empIndicator');
@@ -514,18 +610,18 @@ function render() {
         carCtx.fillStyle = 'rgba(7, 10, 18, 0.75)';
         carCtx.fillRect(0, 0, city.width, city.height);
 
-        carCtx.fillStyle = '#ff0055';
-        carCtx.shadowColor = '#ff0055';
+        carCtx.fillStyle = city.theme.borderGlow;
+        carCtx.shadowColor = city.theme.borderGlow;
         carCtx.shadowBlur = 30;
-        carCtx.font = 'bold 72px "Segoe UI", sans-serif';
+        carCtx.font = 'bold 64px "Segoe UI", sans-serif';
         carCtx.textAlign = 'center';
         carCtx.textBaseline = 'middle';
-        carCtx.fillText('🚨 ESCAPE MISSION!', city.width / 2, city.height / 2 - 25);
+        carCtx.fillText(STAGE_CONFIGS[currentStage].name, city.width / 2, city.height / 2 - 25);
 
-        carCtx.fillStyle = '#39ff14';
+        carCtx.fillStyle = '#ffffff';
         carCtx.shadowBlur = 12;
         carCtx.font = 'bold 22px "Segoe UI", sans-serif';
-        carCtx.fillText('SURVIVE 35 SECONDS TO WIN!', city.width / 2, city.height / 2 + 55);
+        carCtx.fillText(`SURVIVE ${STAGE_CONFIGS[currentStage].escapeSec} SECONDS TO ESCAPE!`, city.width / 2, city.height / 2 + 55);
     }
 
     carCtx.restore();
@@ -539,7 +635,18 @@ function animate() {
 
 // UI Event Handlers
 document.getElementById('restartBtn').addEventListener('click', resetGame);
-document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+const initialPlayAgain = document.getElementById('playAgainBtn');
+if (initialPlayAgain) initialPlayAgain.onclick = resetGame;
+const initialNextStage = document.getElementById('nextStageBtn');
+if (initialNextStage) initialNextStage.onclick = () => loadStage(currentStage + 1);
+
+// Stage Selector Buttons
+document.querySelectorAll('.stage-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const stageNum = parseInt(btn.dataset.stage, 10);
+        loadStage(stageNum);
+    });
+});
 
 const audioBtn = document.getElementById('audioBtn');
 audioBtn.addEventListener('click', () => {
@@ -562,7 +669,10 @@ window.addEventListener('keydown', (e) => {
         triggerEMP();
     } else if (e.key === 'r' || e.key === 'R') {
         resetGame();
-    }
+    } else if (e.key === '1') { loadStage(1); }
+    else if (e.key === '2') { loadStage(2); }
+    else if (e.key === '3') { loadStage(3); }
+    else if (e.key === '4') { loadStage(4); }
 });
 
 window.addEventListener('keyup', (e) => {
@@ -575,6 +685,6 @@ window.addEventListener('keyup', (e) => {
 
 // Launch on page load
 window.addEventListener('DOMContentLoaded', () => {
-    resetGame();
+    loadStage(1);
     requestAnimationFrame(animate);
 });

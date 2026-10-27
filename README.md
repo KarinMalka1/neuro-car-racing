@@ -1,4 +1,4 @@
-# 🚨 Neon Getaway — Police Chase Survival
+# 🚨 Neon Getaway — Police Pursuit Survival (4 Progressive Stages)
 
 A high-octane, real-time arcade police pursuit survival game built from scratch with **vanilla HTML5 Canvas, CSS3, and JavaScript**. Runs 100% in the browser with **zero dependencies, no backend, and no external libraries**.
 
@@ -9,35 +9,61 @@ A high-octane, real-time arcade police pursuit survival game built from scratch 
 
 ## 🌟 Game Overview & Features
 
-You are a neon getaway driver in a cyberpunk metropolis. AI police pursuit units are hunting you down. Your mission: **survive as long as you can, lure police into building walls to destroy them, collect cash, and trigger EMP shockwaves!**
+You are a neon getaway driver in a cyberpunk metropolis. AI police pursuit cruisers are on your tail. Your mission: **survive until the escape timer counts down, trick police into slamming into building walls, collect cash & repairs, and trigger EMP blasts to unlock all 4 stages!**
+
+### 🏙️ 4 Unique Progressive Stages
+Switch between stages anytime using the **Stage Selector Buttons** in the header or pressing keys <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>, or <kbd>4</kbd>:
+
+1. **Stage 1: Downtown Cyber Grid**
+   - *Escape Time:* 30 Seconds
+   - *Threat Level:* 1 Police Cruiser
+   - *Layout:* 4 corner corporate blocks + central neon plaza
+   - *Palette:* Electric Cyan (`#00f3ff`) & Neon Magenta (`#ff007f`)
+
+2. **Stage 2: Industrial Docks**
+   - *Escape Time:* 34 Seconds
+   - *Threat Level:* 2 Units (Patrol Cruiser + Heavy SWAT Armored Truck)
+   - *Layout:* Elongated warehouses & shipping container docks
+   - *Palette:* Amber Gold (`#ffe600`) & Emerald Green (`#39ff14`)
+
+3. **Stage 3: Neon Alleyways**
+   - *Escape Time:* 36 Seconds
+   - *Threat Level:* 2 Fast Agile Interceptors
+   - *Layout:* High-density city chicanes & central divider isle
+   - *Palette:* Neon Purple (`#a855f7`) & Electric Cyan (`#00f3ff`)
+
+4. **Stage 4: Maximum Overdrive ⚡**
+   - *Escape Time:* 40 Seconds
+   - *Threat Level:* SWAT Armored Van + High-Speed Interceptor
+   - *Layout:* Fortified central core + dual escape plazas
+   - *Palette:* Crimson Red (`#ff0055`) & Pure White (`#ffffff`)
+
+---
 
 ### 🎮 Core Mechanics & Architecture
-1. **Dynamic Pursuit AI (`car.js`)**:
-   - Police cruisers calculate intercept trajectories toward your car.
-   - 3-feeler raycasting obstacle avoidance lets police navigate city intersections and avenues.
-   - Trick police cruisers by making sharp drifts around building corners so they slam into walls and explode!
 
-2. **Wanted Level System (⭐ to ⭐⭐⭐⭐⭐)**:
-   - **1 Star (0–15s):** 2 standard patrol cruisers.
-   - **2 Stars (15–30s):** 4 cruisers with faster response times.
-   - **3 Stars (30–45s):** 6 cruisers + heavy SWAT armored trucks!
-   - **4 Stars (45–60s):** 8 units with intense pursuit.
-   - **5 Stars (60s+):** Maximum Chaos! Swarms of cruisers and SWAT vehicles.
+1. **100% Solid Boundary & Building Physics (`car.js`)**:
+   - Zero-penetration vertex-level collision clamping prevents any car corner from crossing outer arena walls or driving over buildings.
+   - Elastic bumper rebound and visual flash on impacts.
+
+2. **Smart Pursuit AI & Wreck Mechanics (`car.js`)**:
+   - Police cruisers calculate interception angles toward the player.
+   - 3-feeler raycasting allows police to navigate street corners.
+   - Trick police cruisers into hitting buildings to blow them up for a **+$1,000 Cash and -4s Escape Bonus**!
 
 3. **Power-Ups & Tactical Weapons**:
-   - 💰 **Cash Bags ($500):** Boost your score.
-   - 🔧 **Repair Wrenches (+35% HP):** Fix collision damage.
-   - ⚡ **EMP Shockwave Blast:** Press <kbd>Space</kbd> to discharge an electric shockwave that blasts surrounding police cruisers away and deals heavy damage!
-   - 🚀 **Nitro Jet Boost:** Hold <kbd>Shift</kbd> to blast forward with cyan jet flames and leave the police in your dust.
+   - 💰 **Cash Bags ($500):** Knocks **-3 seconds** off your escape countdown!
+   - 🔧 **Repair Wrenches (+45% HP):** Instantly restores vehicle integrity.
+   - ⚡ **EMP Shockwave Blast (<kbd>Space</kbd>):** Discharges a 360-degree electromagnetic blast that pushes and damages all nearby police cruisers.
+   - 🚀 **Nitro Jet Boost (Hold <kbd>Shift</kbd>):** Blasts forward with cyan jet exhaust to outpace pursuers.
 
-4. **Procedural Neon City Arena (`city.js`)**:
-   - 4 major building blocks creating avenues, 4-way intersections, and alleyways.
-   - Central roundabout plaza for 360-degree drifting escapes.
-   - Screen shake and explosion debris on heavy impacts.
+4. **Interactive Stage Progression & Victory (`main.js`)**:
+   - Upon surviving a stage, the **Victory Modal** appears with confetti and displays a prominent **"NEXT STAGE"** button to advance directly to the next stage.
+   - Beating all 4 stages rewards you with the **Grand Champion Crown 👑**.
 
 5. **Procedural Web Audio API Synth (`main.js`)**:
-   - Authentic oscillating police siren wails.
-   - Crash thuds, explosion booms, EMP zaps, and cash pickup chimes generated purely via mathematical wave oscillators (zero audio files needed).
+   - Dynamic siren audio that ramps frequency as cops pursue.
+   - Synthesized crash impacts, explosion booms, EMP zaps, and cash pickup chimes generated purely via mathematical wave oscillators (zero external audio files).
 
 ---
 
@@ -50,7 +76,8 @@ You are a neon getaway driver in a cyberpunk metropolis. AI police pursuit units
 | <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd> | Steer & Drift |
 | Hold <kbd>Shift</kbd> | 🚀 Nitro Jet Boost |
 | <kbd>Space</kbd> | ⚡ Trigger EMP Shockwave Blast |
-| <kbd>R</kbd> or **כפתור שחק שוב** | 🔄 Restart Game immediately |
+| <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>, <kbd>4</kbd> | 🏙️ Instant Stage Select (Stage 1 to 4) |
+| <kbd>R</kbd> or **כפתור שחק שוב** | 🔄 Restart Stage immediately |
 
 ---
 
