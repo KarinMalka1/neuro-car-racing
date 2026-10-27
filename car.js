@@ -21,6 +21,7 @@ class PlayerCar {
 
         this.hp = 100;
         this.maxHp = 100;
+        this.damageCooldown = 0;
         this.empCharges = 2;
         this.isBoosting = false;
         this.isSkidding = false;
@@ -32,6 +33,7 @@ class PlayerCar {
 
     update(city) {
         if (this.hitFlash > 0) this.hitFlash--;
+        if (this.damageCooldown > 0) this.damageCooldown--;
 
         // Nitro Boost
         this.isBoosting = Boolean(this.controls.boost);
@@ -76,8 +78,16 @@ class PlayerCar {
         // 100% Solid Physical Resolution: Prevents any vertex from penetrating boundaries or buildings
         const didCollide = CarUtils.resolveCityCollisions(this, city);
         if (didCollide) {
-            this.hp = Math.max(0, this.hp - 1.5);
-            this.hitFlash = 8;
+            this.hitFlash = 6;
+            if (this.damageCooldown <= 0) {
+                // Down slowly: only 2% damage per wall scrape with a 25-frame (0.42s) cooldown
+                this.hp = Math.max(0, this.hp - 2);
+                this.damageCooldown = 25;
+                if (typeof playSound === 'function') playSound('crash');
+                if (typeof showFloatingText === 'function') {
+                    showFloatingText('-2% INTEGRITY', this.x, this.y - 18, '#ffaa00');
+                }
+            }
         }
 
         this.polygon = this.#createPolygon();
@@ -103,6 +113,11 @@ class PlayerCar {
         if (!this.polygon || this.polygon.length === 0) return;
 
         ctx.save();
+        // Invulnerability blink effect when taking damage
+        if (this.damageCooldown > 0 && Math.floor(this.damageCooldown / 3) % 2 === 0) {
+            ctx.globalAlpha = 0.55;
+        }
+
         ctx.beginPath();
         ctx.moveTo(this.polygon[0].x, this.polygon[0].y);
         for (let i = 1; i < this.polygon.length; i++) ctx.lineTo(this.polygon[i].x, this.polygon[i].y);

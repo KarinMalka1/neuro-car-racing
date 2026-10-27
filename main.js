@@ -433,20 +433,32 @@ function updatePhysics() {
         const cop = cops[i];
         cop.update(player, city, cops);
 
-        // Player vs Cop collision
-        if (CarUtils.polysIntersect(player.polygon, [cop.polygon[0], cop.polygon[2]])) {
-            playSound('crash');
-            screenShake = 8;
-            player.hp = Math.max(0, player.hp - 6);
-            cop.hp -= 20;
+        // Player vs Cop collision (Gradual & smooth damage resolution)
+        const dist = Math.hypot(player.x - cop.x, player.y - cop.y);
+        const touchDist = player.radius + cop.radius;
+        if (dist < touchDist) {
+            if (player.damageCooldown <= 0) {
+                playSound('crash');
+                screenShake = 6;
+                // Drops slowly: only 5% on cop bump with 35-frame (~0.6s) invulnerability window
+                player.hp = Math.max(0, player.hp - 5);
+                player.damageCooldown = 35;
+                player.hitFlash = 10;
+                cop.hp -= 25;
+                showFloatingText('-5% INTEGRITY', player.x, player.y - 20, '#ff5500');
 
-            player.speed = -1.2;
-            cop.speed = -1.8;
+                // Bounce away from cop
+                const angle = Math.atan2(player.y - cop.y, player.x - cop.x);
+                player.x += Math.cos(angle) * 10;
+                player.y += Math.sin(angle) * 10;
+                player.speed = -0.6;
+                cop.speed = -1.2;
 
-            if (cop.hp <= 0) {
-                triggerExplosion(cop.x, cop.y, true);
-                cops.splice(i, 1);
-                continue;
+                if (cop.hp <= 0) {
+                    triggerExplosion(cop.x, cop.y, true);
+                    cops.splice(i, 1);
+                    continue;
+                }
             }
         }
 
@@ -467,7 +479,7 @@ function updatePhysics() {
                 showFloatingText('+$500 (-3s ESCAPE)', item.x, item.y, '#ffe600');
             } else if (item.type === 'WRENCH') {
                 player.hp = Math.min(player.maxHp, player.hp + 45);
-                showFloatingText('+45% HEALTH', item.x, item.y, '#39ff14');
+                showFloatingText('+45% INTEGRITY', item.x, item.y, '#39ff14');
             } else if (item.type === 'EMP') {
                 player.empCharges = Math.min(3, player.empCharges + 1);
                 showFloatingText('+1 EMP ⚡', item.x, item.y, '#00f3ff');
