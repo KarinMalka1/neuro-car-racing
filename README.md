@@ -1,10 +1,10 @@
-# 🚨 Neon Getaway — Police Pursuit Survival (4 Progressive Stages)
+# 🚨 Pursuit-Evasion — 2D Police Chase Survival (4 Progressive Stages)
 
 A high-octane, real-time arcade police pursuit survival game built from scratch with **vanilla HTML5 Canvas, CSS3, and JavaScript**. Runs 100% in the browser with **zero dependencies, no backend, and no external libraries**.
 
 🌐 **Direct Links:**  
-* 🎮 **Play Live Game (GitHub Pages):** 👉 **[https://karinmalka1.github.io/neuro-car-racing/](https://karinmalka1.github.io/neuro-car-racing/)**  
-* 📁 **GitHub Source Code Repository:** 👉 **[https://github.com/KarinMalka1/neuro-car-racing](https://github.com/KarinMalka1/neuro-car-racing)**  
+* 🎮 **Play Live Game (GitHub Pages):** 👉 **[https://karinmalka1.github.io/pursuit-evasion-game/](https://karinmalka1.github.io/pursuit-evasion-game/)**  
+* 📁 **GitHub Source Code Repository:** 👉 **[https://github.com/KarinMalka1/pursuit-evasion-game](https://github.com/KarinMalka1/pursuit-evasion-game)**  
 
 ---
 
@@ -86,7 +86,7 @@ Switch between stages anytime using the **Stage Selector Buttons** in the header
 
 1. Clone or download the repository:
    ```bash
-   git clone https://github.com/KarinMalka1/neuro-car-racing.git
+   git clone https://github.com/KarinMalka1/pursuit-evasion-game.git
    ```
 2. Double-click `index.html` to open directly in any browser (Chrome, Edge, Firefox, Safari).  
    *No servers, no node_modules, and no installation required!*
