@@ -427,6 +427,20 @@ kbd {
     font-weight: 800;
 }
 
+.stage-pill.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(10, 15, 26, 0.6);
+    color: #64748b;
+}
+
+.stage-pill.locked:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+    color: #64748b;
+}
+
 /* Modal Next Stage Button */
 .btn-next-stage {
     background: linear-gradient(90deg, #39ff14, #00f3ff) !important;

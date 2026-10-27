@@ -44,6 +44,7 @@ const STAGE_CONFIGS = {
 };
 
 let currentStage = 1;
+let maxUnlockedStage = parseInt(localStorage.getItem('pursuit_max_stage') || '1', 10);
 let city = new CityArena(1060, 700, currentStage);
 let player = null;
 let cops = [];
@@ -166,8 +167,26 @@ function updateSirenAudio() {
     sirenGain.gain.setValueAtTime(0.03, time);
 }
 
+function updateStagePills() {
+    document.querySelectorAll('.stage-pill').forEach(btn => {
+        const stage = parseInt(btn.dataset.stage, 10);
+        const isUnlocked = stage <= maxUnlockedStage;
+        btn.classList.toggle('locked', !isUnlocked);
+        btn.classList.toggle('active', stage === currentStage);
+        const lockSpan = btn.querySelector('.lock-status');
+        if (lockSpan) {
+            lockSpan.textContent = isUnlocked ? '' : '🔒';
+        }
+    });
+}
+
 // Stage Loader: Switches between Stage 1, 2, 3, 4 seamlessly!
 function loadStage(stageNum) {
+    if (stageNum > maxUnlockedStage) {
+        showFloatingText(`🔒 STAGE ${stageNum} IS LOCKED! Clear Stage ${stageNum - 1} first!`, city ? city.width / 2 : 530, city ? city.height / 2 : 350, '#ff0055');
+        return;
+    }
+
     currentStage = Math.max(1, Math.min(4, stageNum));
     const cfg = STAGE_CONFIGS[currentStage];
 
@@ -200,9 +219,7 @@ function loadStage(stageNum) {
     spawnCollectible('EMP');
 
     // Update UI Stage Pills
-    document.querySelectorAll('.stage-pill').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.stage, 10) === currentStage);
-    });
+    updateStagePills();
 
     const stageTitleEl = document.getElementById('stageDisplay');
     if (stageTitleEl) stageTitleEl.textContent = cfg.name;
@@ -300,8 +317,21 @@ function showFloatingText(text, x, y, color = '#ffffff') {
 
 // VICTORY: STAGE CLEARED
 function triggerVictory() {
+    // Strictly forbid winning if car integrity is depleted!
+    if (!player || player.hp <= 0) {
+        gameOver();
+        return;
+    }
+
     gameState = 'VICTORY';
     playSound('victory');
+
+    // UNLOCK NEXT STAGE ONLY ON GENUINE VICTORY!
+    if (currentStage < 4) {
+        maxUnlockedStage = Math.max(maxUnlockedStage, currentStage + 1);
+        localStorage.setItem('pursuit_max_stage', maxUnlockedStage);
+    }
+    updateStagePills();
 
     for (let i = 0; i < 160; i++) {
         confetti.push({
@@ -332,11 +362,12 @@ function triggerVictory() {
         nextValEl.textContent = isFinalStage ? 'REPLAY ALL 👑' : `STAGE ${currentStage + 1} 🚀`;
     }
 
-    // Configure Next Stage Button
+    // Configure Next Stage Button: SHOW ON VICTORY
     const nextBtn = document.getElementById('nextStageBtn');
     if (nextBtn) {
+        nextBtn.style.display = 'block';
         if (isFinalStage) {
-            nextBtn.textContent = '👑 PLAY ALL FROM STAGE 1 (שחק שוב משלב 1)';
+            nextBtn.textContent = '👑 REPLAY FROM STAGE 1 (שחק משלב 1) ➔';
             nextBtn.onclick = () => loadStage(1);
         } else {
             nextBtn.textContent = `🚀 NEXT STAGE: STAGE ${currentStage + 1} (עבור לשלב ${currentStage + 1}) ➔`;
@@ -346,42 +377,46 @@ function triggerVictory() {
 
     const playAgainBtn = document.getElementById('playAgainBtn');
     if (playAgainBtn) {
-        playAgainBtn.textContent = `🔄 Retry Stage ${currentStage} (שחק שוב את שלב ${currentStage})`;
+        playAgainBtn.className = 'btn btn-secondary';
+        playAgainBtn.textContent = `🔄 Replay Stage ${currentStage}`;
         playAgainBtn.onclick = () => loadStage(currentStage);
     }
 
     document.getElementById('endGameModal').classList.remove('hidden');
 }
 
-// BUSTED
+// BUSTED (FAILURE)
 function gameOver() {
     gameState = 'GAME_OVER';
     playSound('busted');
     triggerExplosion(player.x, player.y, false);
 
     document.getElementById('modalIcon').textContent = '🚨';
-    document.getElementById('modalTitle').textContent = 'BUSTED!';
+    document.getElementById('modalTitle').textContent = 'BUSTED! MISSION FAILED';
     document.getElementById('modalTitle').style.color = '#ff0055';
-    document.getElementById('modalSubtitle').textContent = `Cornered in Stage ${currentStage}!`;
+    document.getElementById('modalSubtitle').textContent = `Car Integrity depleted in Stage ${currentStage}! You failed the mission.`;
     document.getElementById('modalStatTimeLabel').textContent = 'Survived';
     document.getElementById('modalStatTime').textContent = `${((TOTAL_ESCAPE_FRAMES - escapeFrames) / 60).toFixed(1)}s`;
     document.getElementById('modalCash').textContent = `$${cashScore.toLocaleString()}`;
     document.getElementById('modalStatusLabel').textContent = 'Status';
-    document.getElementById('modalStatus').textContent = 'BUSTED ❌';
+    document.getElementById('modalStatus').textContent = 'FAILED ❌';
 
     const nextValEl = document.getElementById('modalNextStageVal');
-    if (nextValEl) nextValEl.textContent = `STAGE ${currentStage} ⚠️`;
+    if (nextValEl) nextValEl.textContent = `LOCKED 🔒 (Failed)`;
 
+    // STRICT: HIDE NEXT STAGE BUTTON! Player cannot advance on failure!
     const nextBtn = document.getElementById('nextStageBtn');
     if (nextBtn) {
-        nextBtn.textContent = `🔄 RETRY STAGE ${currentStage} (נסה שוב את השלב)`;
-        nextBtn.onclick = () => loadStage(currentStage);
+        nextBtn.style.display = 'none';
+        nextBtn.onclick = null;
     }
 
+    // Only Retry Stage is available
     const playAgainBtn = document.getElementById('playAgainBtn');
     if (playAgainBtn) {
-        playAgainBtn.textContent = `🔄 Start Over from Stage 1 (התחל מחדש משלב 1)`;
-        playAgainBtn.onclick = () => loadStage(1);
+        playAgainBtn.className = 'btn btn-big btn-danger';
+        playAgainBtn.textContent = `🔄 RETRY STAGE ${currentStage} (נסה שוב את השלב)`;
+        playAgainBtn.onclick = () => loadStage(currentStage);
     }
 
     document.getElementById('endGameModal').classList.remove('hidden');
@@ -403,10 +438,20 @@ function updatePhysics() {
 
     if (gameState !== 'PLAYING') return;
 
-    // Countdown Timer
+    // 1. CRITICAL INTEGRITY CHECK FIRST: If car integrity is depleted, fail immediately!
+    if (player && player.hp <= 0) {
+        gameOver();
+        return;
+    }
+
+    // 2. Countdown Timer: Only permits victory if car is STILL ALIVE!
     escapeFrames--;
     if (escapeFrames <= 0) {
-        triggerVictory();
+        if (player && player.hp > 0) {
+            triggerVictory();
+        } else {
+            gameOver();
+        }
         return;
     }
 
@@ -508,8 +553,9 @@ function updatePhysics() {
         if (f.life <= 0) floatingTexts.splice(i, 1);
     }
 
-    if (player.hp <= 0) {
+    if (player && player.hp <= 0) {
         gameOver();
+        return;
     }
 
     updateHUD();
@@ -649,8 +695,6 @@ function animate() {
 document.getElementById('restartBtn').addEventListener('click', resetGame);
 const initialPlayAgain = document.getElementById('playAgainBtn');
 if (initialPlayAgain) initialPlayAgain.onclick = resetGame;
-const initialNextStage = document.getElementById('nextStageBtn');
-if (initialNextStage) initialNextStage.onclick = () => loadStage(currentStage + 1);
 
 // Stage Selector Buttons
 document.querySelectorAll('.stage-pill').forEach(btn => {
