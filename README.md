@@ -1,4 +1,4 @@
-# 🚨 Pursuit-Evasion — 2D Police Chase Survival (4 Progressive Stages)
+# 🚨 Pursuit-Evasion - 2D Police Chase Survival (4 Progressive Stages)
 
 A high-octane, real-time arcade police pursuit survival game built from scratch with **vanilla HTML5 Canvas, CSS3, and JavaScript**. Runs 100% in the browser with **zero dependencies, no backend, and no external libraries**.
 
